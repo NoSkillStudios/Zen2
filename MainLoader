@@ -1,4 +1,4 @@
-local BASE = "https://raw.githubusercontent.com/NoSkillStudios/Zen2/main/"
+local BASE = "https://raw.githubusercontent.com/NoSkillStudios/Zen2/main"
 getgenv()._lav_key = "LavenderAdmin_Secure_2025"
 
 local function fetch(path)
