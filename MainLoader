@@ -1,0 +1,26 @@
+local BASE = "https://raw.githubusercontent.com/NoSkillStudios/Zen/main/"
+getgenv()._lav_key = "LavenderAdmin_Secure_2025"
+
+local function fetch(path)
+	local ok, res = pcall(function() return game:HttpGet(BASE .. path) end)
+	return ok and res or nil
+end
+
+local function notify(t, b)
+	pcall(function()
+		game:GetService("StarterGui"):SetCore("SendNotification", {Title=t, Text=b, Duration=8})
+	end)
+end
+
+local raw = fetch("Commands")
+if not raw then notify("Lavender", "Failed to fetch command definitions.") return end
+getgenv()._lav_commands_raw = raw
+
+local script_src = fetch("Script")
+if not script_src then notify("Lavender", "Failed to fetch main script.") return end
+
+local fn, err = loadstring(script_src)
+if not fn then notify("Lavender — Parse Error", tostring(err)) return end
+
+local ok2, err2 = pcall(fn)
+if not ok2 then notify("Lavender — Runtime Error", tostring(err2)) return end
