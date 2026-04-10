@@ -1,0 +1,427 @@
+
+if getgenv()._lav_key ~= "LavenderAdmin_Secure_2025" then return end
+
+local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService     = game:GetService("TweenService")
+local Stats            = game:GetService("Stats")
+local lp               = Players.LocalPlayer
+local pg               = lp:WaitForChild("PlayerGui")
+
+local OWNERS = { ["SkibidihhhToiwet"]=true, ["tubers9312u"]=true, ["mask_amtherealone"]=true }
+local isOwner = OWNERS[lp.Name] == true
+
+local LAV = {
+	bg       = Color3.fromRGB(15, 12, 22),
+	bar      = Color3.fromRGB(22, 18, 35),
+	barBrd   = Color3.fromRGB(38, 30, 58),
+	accent   = Color3.fromRGB(160, 120, 255),
+	accentDim= Color3.fromRGB(100, 75, 180),
+	accentGlo= Color3.fromRGB(200, 170, 255),
+	purple   = Color3.fromRGB(130, 90, 220),
+	purpleDk = Color3.fromRGB(80, 50, 150),
+	dot      = Color3.fromRGB(140, 100, 230),
+	green    = Color3.fromRGB(100, 220, 140),
+	yellow   = Color3.fromRGB(240, 200, 80),
+	red      = Color3.fromRGB(240, 80, 80),
+	txt      = Color3.fromRGB(220, 210, 245),
+	txtDim   = Color3.fromRGB(140, 120, 180),
+	txtFaint = Color3.fromRGB(90, 75, 120),
+	notifBg  = Color3.fromRGB(28, 22, 44),
+	notifBrd = Color3.fromRGB(70, 50, 110),
+}
+
+local execName = "Unknown"
+pcall(function()
+	if identifyexecutor then execName = identifyexecutor()
+	elseif getexecutorname then execName = getexecutorname()
+	elseif syn then execName = "Synapse X"
+	elseif KRNL_LOADED then execName = "KRNL"
+	elseif pebc then execName = "ProtoSmasher" end
+end)
+
+local commands = {}
+pcall(function()
+	local raw = getgenv()._lav_commands_raw or ""
+	for line in raw:gmatch("[^\n]+") do
+		local name, desc = line:match("^([%w_]+)%s*:%s*(.+)$")
+		if name and desc then table.insert(commands, {name=name, desc=desc}) end
+	end
+end)
+
+local Root = Instance.new("ScreenGui")
+Root.Name           = "LavenderAdmin"
+Root.IgnoreGuiInset = true
+Root.ResetOnSpawn   = false
+Root.DisplayOrder   = 999
+Root.Parent         = pg
+
+local function mkCorner(p, r) Instance.new("UICorner", p).CornerRadius = UDim.new(0, r or 8) end
+local function mkStroke(p, c, t, tr)
+	local s = Instance.new("UIStroke", p)
+	s.Color = c; s.Thickness = t or 1; s.Transparency = tr or 0
+end
+
+local BAR_H   = 48
+local BAR_W   = 520
+local CORNER  = 12
+local collapsed = false
+
+local barHolder = Instance.new("Frame", Root)
+barHolder.Name            = "BarHolder"
+barHolder.AnchorPoint     = Vector2.new(0.5, 0)
+barHolder.Position        = UDim2.new(0.5, 0, 0, 10)
+barHolder.Size            = UDim2.fromOffset(BAR_W, BAR_H)
+barHolder.BackgroundTransparency = 1
+barHolder.ClipsDescendants = false
+
+local Bar = Instance.new("Frame", barHolder)
+Bar.Name            = "Bar"
+Bar.Size            = UDim2.fromOffset(BAR_W, BAR_H)
+Bar.BackgroundColor3 = LAV.bar
+Bar.BorderSizePixel = 0
+mkCorner(Bar, CORNER)
+mkStroke(Bar, LAV.barBrd, 1, 0)
+
+local barGrad = Instance.new("UIGradient", Bar)
+barGrad.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0,   Color3.fromRGB(28, 22, 44)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(22, 17, 36)),
+	ColorSequenceKeypoint.new(1,   Color3.fromRGB(18, 14, 30)),
+})
+barGrad.Rotation = 90
+
+local barShadow = Instance.new("Frame", barHolder)
+barShadow.Size            = UDim2.fromOffset(BAR_W - 20, 8)
+barShadow.Position        = UDim2.fromOffset(10, BAR_H - 2)
+barShadow.BackgroundColor3 = Color3.fromRGB(100, 60, 200)
+barShadow.BackgroundTransparency = 0.82
+barShadow.BorderSizePixel = 0
+mkCorner(barShadow, 8)
+barShadow.ZIndex = 0
+
+local function mkIconBtn(parent, xOff, symbol, size)
+	local f = Instance.new("Frame", parent)
+	f.Size             = UDim2.fromOffset(36, 36)
+	f.Position         = UDim2.fromOffset(xOff, 6)
+	f.BackgroundColor3 = LAV.purpleDk
+	f.BackgroundTransparency = 0.6
+	f.BorderSizePixel  = 0
+	mkCorner(f, 8)
+	local lbl = Instance.new("TextLabel", f)
+	lbl.Size               = UDim2.fromScale(1, 1)
+	lbl.BackgroundTransparency = 1
+	lbl.Text               = symbol
+	lbl.TextSize           = size or 16
+	lbl.Font               = Enum.Font.GothamBold
+	lbl.TextColor3         = LAV.accentGlo
+	lbl.TextXAlignment     = Enum.TextXAlignment.Center
+	return f, lbl
+end
+
+local xCursor = 8
+
+local crownBtn, crownLbl
+if isOwner then
+	crownBtn, crownLbl = mkIconBtn(Bar, xCursor, "♛", 18)
+	local cGrad = Instance.new("UIGradient", crownBtn)
+	cGrad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 130, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 60, 200)),
+	})
+	cGrad.Rotation = 135
+	crownLbl.TextColor3 = Color3.fromRGB(255, 240, 120)
+	xCursor += 44
+end
+
+local infoBlock = Instance.new("Frame", Bar)
+infoBlock.Size             = UDim2.fromOffset(180, 36)
+infoBlock.Position         = UDim2.fromOffset(xCursor, 6)
+infoBlock.BackgroundTransparency = 1
+infoBlock.BorderSizePixel  = 0
+
+local fpsRow = Instance.new("Frame", infoBlock)
+fpsRow.Size             = UDim2.new(1, 0, 0, 16)
+fpsRow.Position         = UDim2.fromOffset(0, 0)
+fpsRow.BackgroundTransparency = 1
+
+local fpsDot = Instance.new("Frame", fpsRow)
+fpsDot.Size             = UDim2.fromOffset(6, 6)
+fpsDot.Position         = UDim2.fromOffset(0, 5)
+fpsDot.BackgroundColor3 = LAV.green
+fpsDot.BorderSizePixel  = 0
+mkCorner(fpsDot, 3)
+
+local fpsLbl = Instance.new("TextLabel", fpsRow)
+fpsLbl.Size               = UDim2.new(1, -10, 1, 0)
+fpsLbl.Position           = UDim2.fromOffset(10, 0)
+fpsLbl.BackgroundTransparency = 1
+fpsLbl.TextColor3         = LAV.green
+fpsLbl.Font               = Enum.Font.GothamSemibold
+fpsLbl.TextSize           = 11
+fpsLbl.TextXAlignment     = Enum.TextXAlignment.Left
+fpsLbl.Text               = "FPS --"
+
+local pingRow = Instance.new("Frame", infoBlock)
+pingRow.Size             = UDim2.new(0.55, 0, 0, 16)
+pingRow.Position         = UDim2.fromOffset(0, 18)
+pingRow.BackgroundTransparency = 1
+
+local pingDot = Instance.new("Frame", pingRow)
+pingDot.Size             = UDim2.fromOffset(6, 6)
+pingDot.Position         = UDim2.fromOffset(0, 5)
+pingDot.BackgroundColor3 = LAV.green
+pingDot.BorderSizePixel  = 0
+mkCorner(pingDot, 3)
+
+local pingLbl = Instance.new("TextLabel", pingRow)
+pingLbl.Size               = UDim2.new(1, -10, 1, 0)
+pingLbl.Position           = UDim2.fromOffset(10, 0)
+pingLbl.BackgroundTransparency = 1
+pingLbl.TextColor3         = LAV.green
+pingLbl.Font               = Enum.Font.GothamSemibold
+pingLbl.TextSize           = 11
+pingLbl.TextXAlignment     = Enum.TextXAlignment.Left
+pingLbl.Text               = "PING --ms"
+
+local execDot = Instance.new("Frame", infoBlock)
+execDot.Size             = UDim2.fromOffset(6, 6)
+execDot.Position         = UDim2.fromOffset(0, 18 + 18 + 2)
+execDot.BackgroundColor3 = LAV.dot
+execDot.BorderSizePixel  = 0
+mkCorner(execDot, 3)
+
+local execLbl = Instance.new("TextLabel", infoBlock)
+execLbl.Size               = UDim2.new(1, -10, 0, 13)
+execLbl.Position           = UDim2.fromOffset(10, 36)
+execLbl.BackgroundTransparency = 1
+execLbl.TextColor3         = LAV.dot
+execLbl.Font               = Enum.Font.GothamSemibold
+execLbl.TextSize           = 10
+execLbl.TextXAlignment     = Enum.TextXAlignment.Left
+execLbl.Text               = execName
+
+local hubNameLbl = Instance.new("TextLabel", Bar)
+hubNameLbl.Size               = UDim2.new(0, 140, 1, 0)
+hubNameLbl.Position           = UDim2.fromOffset(xCursor + 118, 0)
+hubNameLbl.BackgroundTransparency = 1
+hubNameLbl.TextColor3         = LAV.txt
+hubNameLbl.Font               = Enum.Font.GothamBold
+hubNameLbl.TextSize           = 13
+hubNameLbl.TextXAlignment     = Enum.TextXAlignment.Left
+hubNameLbl.Text               = "LAVENDER ADMIN"
+
+local rightStart = BAR_W - 8
+local function mkRight(symbol, sz)
+	rightStart -= 44
+	local f, l = mkIconBtn(Bar, rightStart, symbol, sz)
+	return f, l
+end
+
+local settingsBtn = mkRight("⚙", 16)
+local wifiBtn     = mkRight("⌘", 15)
+local cmdBtn      = mkRight(">_", 13)
+
+local sep = Instance.new("Frame", Bar)
+sep.Size             = UDim2.fromOffset(1, 28)
+sep.Position         = UDim2.fromOffset(rightStart - 8, 10)
+sep.BackgroundColor3 = LAV.barBrd
+sep.BorderSizePixel  = 0
+
+local collapseBtn = Instance.new("TextButton", Root)
+collapseBtn.Size             = UDim2.fromOffset(40, 14)
+collapseBtn.AnchorPoint      = Vector2.new(0.5, 0)
+collapseBtn.Position         = UDim2.new(0.5, 0, 0, BAR_H + 14)
+collapseBtn.BackgroundColor3 = LAV.purpleDk
+collapseBtn.BackgroundTransparency = 0.5
+collapseBtn.BorderSizePixel  = 0
+collapseBtn.Text             = "▲"
+collapseBtn.TextColor3       = LAV.accentDim
+collapseBtn.TextSize         = 9
+collapseBtn.Font             = Enum.Font.GothamBold
+collapseBtn.AutoButtonColor  = false
+mkCorner(collapseBtn, 4)
+
+local notifFrame = Instance.new("Frame", Root)
+notifFrame.Name            = "Notif"
+notifFrame.Size            = UDim2.fromOffset(280, 80)
+notifFrame.AnchorPoint     = Vector2.new(0.5, 0)
+notifFrame.Position        = UDim2.new(0.5, 0, 0, BAR_H + 34)
+notifFrame.BackgroundColor3 = LAV.notifBg
+notifFrame.BackgroundTransparency = 0.08
+notifFrame.BorderSizePixel = 0
+notifFrame.ClipsDescendants = false
+mkCorner(notifFrame, 10)
+mkStroke(notifFrame, LAV.notifBrd, 1, 0.2)
+
+local notifGrad = Instance.new("UIGradient", notifFrame)
+notifGrad.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 26, 55)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(22, 16, 38)),
+})
+notifGrad.Rotation = 120
+
+local notifTag = Instance.new("TextLabel", notifFrame)
+notifTag.Size               = UDim2.new(1, -16, 0, 14)
+notifTag.Position           = UDim2.fromOffset(12, 10)
+notifTag.BackgroundTransparency = 1
+notifTag.TextColor3         = LAV.accentDim
+notifTag.Font               = Enum.Font.GothamSemibold
+notifTag.TextSize           = 10
+notifTag.TextXAlignment     = Enum.TextXAlignment.Left
+notifTag.Text               = "LAVENDER ADMIN"
+
+local notifTitle = Instance.new("TextLabel", notifFrame)
+notifTitle.Size               = UDim2.new(1, -16, 0, 20)
+notifTitle.Position           = UDim2.fromOffset(12, 24)
+notifTitle.BackgroundTransparency = 1
+notifTitle.TextColor3         = LAV.txt
+notifTitle.Font               = Enum.Font.GothamBold
+notifTitle.TextSize           = 14
+notifTitle.TextXAlignment     = Enum.TextXAlignment.Left
+notifTitle.Text               = "Welcome, "..lp.Name
+
+local notifBody = Instance.new("TextLabel", notifFrame)
+notifBody.Size               = UDim2.new(1, -16, 0, 26)
+notifBody.Position           = UDim2.fromOffset(12, 46)
+notifBody.BackgroundTransparency = 1
+notifBody.TextColor3         = LAV.txtDim
+notifBody.Font               = Enum.Font.Gotham
+notifBody.TextSize           = 11
+notifBody.TextXAlignment     = Enum.TextXAlignment.Left
+notifBody.TextWrapped         = true
+notifBody.Text               = "Commands loaded. Click >_ in the top bar to open."
+
+local notifAccent = Instance.new("Frame", notifFrame)
+notifAccent.Size             = UDim2.fromOffset(3, 60)
+notifAccent.Position         = UDim2.fromOffset(0, 10)
+notifAccent.BackgroundColor3 = LAV.accent
+notifAccent.BorderSizePixel  = 0
+mkCorner(notifAccent, 2)
+local naGrad = Instance.new("UIGradient", notifAccent)
+naGrad.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, LAV.accentGlo),
+	ColorSequenceKeypoint.new(1, LAV.purple),
+})
+naGrad.Rotation = 90
+
+notifFrame.Position = UDim2.new(0.5, 0, 0, BAR_H + 20)
+notifFrame.BackgroundTransparency = 1
+notifTag.TextTransparency = 1; notifTitle.TextTransparency = 1; notifBody.TextTransparency = 1
+notifAccent.BackgroundTransparency = 1
+
+task.delay(0.4, function()
+	TweenService:Create(notifFrame, TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+		BackgroundTransparency = 0.08,
+		Position = UDim2.new(0.5, 0, 0, BAR_H + 34),
+	}):Play()
+	TweenService:Create(notifTag,   TweenInfo.new(0.3), {TextTransparency=0}):Play()
+	TweenService:Create(notifTitle, TweenInfo.new(0.3), {TextTransparency=0}):Play()
+	TweenService:Create(notifBody,  TweenInfo.new(0.3), {TextTransparency=0}):Play()
+	TweenService:Create(notifAccent,TweenInfo.new(0.3), {BackgroundTransparency=0}):Play()
+	task.delay(5, function()
+		TweenService:Create(notifFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+			BackgroundTransparency = 1,
+			Position = UDim2.new(0.5, 0, 0, BAR_H + 10),
+		}):Play()
+		TweenService:Create(notifTag,   TweenInfo.new(0.3), {TextTransparency=1}):Play()
+		TweenService:Create(notifTitle, TweenInfo.new(0.3), {TextTransparency=1}):Play()
+		TweenService:Create(notifBody,  TweenInfo.new(0.3), {TextTransparency=1}):Play()
+		TweenService:Create(notifAccent,TweenInfo.new(0.3), {BackgroundTransparency=1}):Play()
+	end)
+end)
+
+Bar.BackgroundTransparency = 1
+barShadow.BackgroundTransparency = 1
+for _, d in ipairs(Bar:GetDescendants()) do
+	if d:IsA("TextLabel") then d.TextTransparency = 1 end
+	if d:IsA("Frame") and d ~= Bar then d.BackgroundTransparency = 1 end
+	if d:IsA("UIStroke") then d.Transparency = 1 end
+end
+collapseBtn.BackgroundTransparency = 1; collapseBtn.TextTransparency = 1
+
+task.spawn(function()
+	task.wait(0.05)
+	TweenService:Create(Bar, TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundTransparency=0}):Play()
+	TweenService:Create(barShadow, TweenInfo.new(0.5), {BackgroundTransparency=0.82}):Play()
+	TweenService:Create(collapseBtn, TweenInfo.new(0.4), {BackgroundTransparency=0.5, TextTransparency=0}):Play()
+	task.wait(0.12)
+	for _, d in ipairs(Bar:GetDescendants()) do
+		if d:IsA("TextLabel") then
+			TweenService:Create(d, TweenInfo.new(0.3), {TextTransparency=0}):Play()
+		end
+		if d:IsA("Frame") and d ~= Bar and d.Name ~= "UIGradient" then
+			pcall(function()
+				local target = d.Name == "fpsDot" and 0
+					or d.Name == "pingDot" and 0
+					or d.Name == "execDot" and 0
+					or (d.BackgroundColor3 == LAV.purpleDk and 0.6)
+					or 1
+				if target then TweenService:Create(d, TweenInfo.new(0.3), {BackgroundTransparency=target}):Play() end
+			end)
+		end
+		if d:IsA("UIStroke") then TweenService:Create(d, TweenInfo.new(0.3), {Transparency=0}):Play() end
+	end
+end)
+
+local function pulseBtn(btn)
+	TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundTransparency=0.2}):Play()
+	task.delay(0.1, function()
+		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundTransparency=0.6}):Play()
+	end)
+end
+
+for _, b in ipairs({cmdBtn, settingsBtn, wifiBtn}) do
+	local btn = b:IsA("Frame") and b or b
+	btn.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then pulseBtn(btn) end
+	end)
+end
+if crownBtn then
+	crownBtn.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then pulseBtn(crownBtn) end
+	end)
+end
+
+collapseBtn.MouseButton1Click:Connect(function()
+	collapsed = not collapsed
+	if collapsed then
+		TweenService:Create(barHolder, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0.5, 0, 0, -(BAR_H + 4))
+		}):Play()
+		TweenService:Create(collapseBtn, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0.5, 0, 0, 10)
+		}):Play()
+		collapseBtn.Text = "▼"
+	else
+		TweenService:Create(barHolder, TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0.5, 0, 0, 10)
+		}):Play()
+		TweenService:Create(collapseBtn, TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0.5, 0, 0, BAR_H + 14)
+		}):Play()
+		collapseBtn.Text = "▲"
+	end
+end)
+
+local fpsTimer = 0
+local fpsSamples = {}
+RunService.RenderStepped:Connect(function(dt)
+	fpsTimer += dt
+	table.insert(fpsSamples, 1 / dt)
+	if #fpsSamples > 30 then table.remove(fpsSamples, 1) end
+	if fpsTimer >= 0.5 then
+		fpsTimer = 0
+		local sum = 0
+		for _, v in ipairs(fpsSamples) do sum += v end
+		local fps = math.floor(sum / #fpsSamples)
+		fpsLbl.Text = "FPS "..fps
+		local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+		pingLbl.Text = "PING "..ping.."ms"
+		local pc = ping < 80 and LAV.green or ping < 180 and LAV.yellow or LAV.red
+		pingLbl.TextColor3 = pc; pingDot.BackgroundColor3 = pc
+		local fc = fps >= 45 and LAV.green or fps >= 25 and LAV.yellow or LAV.red
+		fpsLbl.TextColor3 = fc; fpsDot.BackgroundColor3 = fc
+	end
+end)
