@@ -1,0 +1,36 @@
+speed: Sets the WalkSpeed of a player
+jump: Sets the JumpPower of a player
+fly: Toggles fly mode on yourself
+noclip: Toggles noclip on yourself
+invisible: Makes yourself invisible
+freeze: Freezes a player in place
+unfreeze: Unfreezes a player
+kill: Kills a target player
+respawn: Respawns a target player
+tp: Teleports you to a player
+bring: Brings a player to you
+fling: Flings a player with velocity
+sit: Forces a player to sit
+god: Enables godmode on yourself
+esp: Toggles player ESP
+chams: Highlights all players
+nametags: Shows nametags through walls
+tracers: Draws lines to all players
+gravity: Sets workspace gravity
+timeset: Sets lighting clock time
+fog: Sets fog density
+ambient: Sets lighting ambient
+brightness: Sets lighting brightness
+players: Lists all players with info
+serverid: Shows current server JobId
+ping: Shows your current ping
+uptime: Shows server uptime
+serversize: Shows player count vs max
+pm: Sends a fake whisper to a player
+spam: Spams a chat message
+hint: Shows a hint to all clients
+reset: Respawns yourself
+goto: Teleports to coordinates
+pos: Prints your current position
+rejoin: Rejoins the current game
+spectate: Spectates a player
