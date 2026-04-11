@@ -1,1056 +1,429 @@
 if getgenv()._lav_key ~= "LavenderAdmin_Secure_2025" then return end
+if getgenv()._lav_gui_loaded then 
+    -- Destroy old GUI
+    local old = game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("LavenderAdmin")
+    if old then old:Destroy() end
+end
+getgenv()._lav_gui_loaded = true
 
-local Players          = game:GetService("Players")
-local RunService       = game:GetService("RunService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local TweenService     = game:GetService("TweenService")
-local TeleportService  = game:GetService("TeleportService")
-local Stats            = game:GetService("Stats")
-local Lighting         = game:GetService("Lighting")
-local HttpService      = game:GetService("HttpService")
-local lp               = Players.LocalPlayer
-local pg               = lp:WaitForChild("PlayerGui")
-local cam              = workspace.CurrentCamera
+local TweenService = game:GetService("TweenService")
+local Stats = game:GetService("Stats")
+local lp = Players.LocalPlayer
+local pg = lp:WaitForChild("PlayerGui")
 
--- Color Palette (Modern Lavender)
+-- Wait for commands to load
+local retries = 0
+while not getgenv()._lav_cmds and retries < 50 do
+    task.wait(0.1)
+    retries += 1
+end
+if not getgenv()._lav_cmds then
+    warn("Commands not found!")
+    return
+end
+
+local CMDS = getgenv()._lav_cmds
+local state = getgenv()._lav_state
+local runCmd = getgenv()._lav_run
+
+-- Colors
 local C = {
-	bg       = Color3.fromRGB(12, 10, 22),
-	panel    = Color3.fromRGB(18, 15, 32),
-	surface  = Color3.fromRGB(25, 21, 42),
-	accent   = Color3.fromRGB(167, 139, 250),
-	accentHi = Color3.fromRGB(216, 180, 254),
-	accentDk = Color3.fromRGB(109, 73, 212),
-	glow     = Color3.fromRGB(139, 92, 246),
-	text     = Color3.fromRGB(237, 233, 254),
-	textDim  = Color3.fromRGB(168, 162, 200),
-	textDark = Color3.fromRGB(100, 90, 130),
-	success  = Color3.fromRGB(134, 239, 172),
-	warning  = Color3.fromRGB(250, 204, 21),
-	error    = Color3.fromRGB(248, 113, 113),
-	overlay  = Color3.fromRGB(0, 0, 0),
+    bg = Color3.fromRGB(12, 10, 22),
+    panel = Color3.fromRGB(18, 15, 32),
+    surface = Color3.fromRGB(25, 21, 42),
+    accent = Color3.fromRGB(167, 139, 250),
+    accentHi = Color3.fromRGB(216, 180, 254),
+    accentDk = Color3.fromRGB(109, 73, 212),
+    text = Color3.fromRGB(237, 233, 254),
+    textDim = Color3.fromRGB(168, 162, 200),
 }
 
--- State Management
-local state = {
-	fly = false, noclip = false, god = false, invisible = false,
-	esp = false, chams = false, nametags = false, tracers = false, spectate = false,
-	flySpeed = 60, flyConn = nil, noclipConn = nil, godConn = nil, specConn = nil,
-	espObjs = {}, chamObjs = {}, traceObjs = {}, tagObjs = {},
-	prefix = ";", uiVisible = true, collapsed = false,
-	targetESP = {}, -- Store specific ESP targets
-}
-getgenv()._lav_state = state
+-- Clean old
+local old = pg:FindFirstChild("LavenderAdmin")
+if old then old:Destroy() end
 
--- Utility Functions
+-- ScreenGui
+local gui = Instance.new("ScreenGui")
+gui.Name = "LavenderAdmin"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.DisplayOrder = 999
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = pg
+
+-- Notification Container
+local notifContainer = Instance.new("Frame")
+notifContainer.Name = "Notifs"
+notifContainer.Size = UDim2.new(0, 300, 1, -100)
+notifContainer.Position = UDim2.new(1, -20, 0, 80)
+notifContainer.AnchorPoint = Vector2.new(1, 0)
+notifContainer.BackgroundTransparency = 1
+notifContainer.Parent = gui
+
+local notifLayout = Instance.new("UIListLayout")
+notifLayout.Padding = UDim.new(0, 8)
+notifLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+notifLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+notifLayout.Parent = notifContainer
+
+-- Notification Function (FIXED - proper cleanup)
 local function notify(title, body, duration, ntype)
-	ntype = ntype or "info"
-	local color = ntype == "success" and C.success or ntype == "error" and C.error or ntype == "warning" and C.warning or C.accent
-	
-	-- Find existing GUI or create notification container
-	local gui = pg:FindFirstChild("LavenderAdmin")
-	if not gui then return end
-	
-	local notifContainer = gui:FindFirstChild("NotifContainer") or Instance.new("Frame")
-	if not notifContainer.Parent then
-		notifContainer.Name = "NotifContainer"
-		notifContainer.BackgroundTransparency = 1
-		notifContainer.Position = UDim2.new(1, -20, 0, 80)
-		notifContainer.Size = UDim2.new(0, 320, 1, -100)
-		notifContainer.AnchorPoint = Vector2.new(1, 0)
-		notifContainer.Parent = gui
-		
-		local layout = Instance.new("UIListLayout")
-		layout.Padding = UDim.new(0, 8)
-		layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-		layout.VerticalAlignment = Enum.VerticalAlignment.Top
-		layout.Parent = notifContainer
-	end
-	
-	-- Create Notification
-	local notif = Instance.new("Frame")
-	notif.Name = "Notification"
-	notif.Size = UDim2.new(0, 300, 0, 0)
-	notif.BackgroundColor3 = C.panel
-	notif.BackgroundTransparency = 0.1
-	notif.BorderSizePixel = 0
-	notif.Parent = notifContainer
-	notif.ClipsDescendants = true
-	
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 12)
-	corner.Parent = notif
-	
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = color
-	stroke.Thickness = 1.5
-	stroke.Transparency = 0.3
-	stroke.Parent = notif
-	
-	-- Glow effect
-	local glow = Instance.new("Frame")
-	glow.Name = "Glow"
-	glow.Size = UDim2.new(1, 0, 0, 40)
-	glow.Position = UDim2.new(0, 0, 0, -20)
-	glow.BackgroundColor3 = color
-	glow.BackgroundTransparency = 0.9
-	glow.BorderSizePixel = 0
-	glow.Parent = notif
-	
-	local glowCorner = Instance.new("UICorner")
-	glowCorner.CornerRadius = UDim.new(0, 12)
-	glowCorner.Parent = glow
-	
-	-- Icon
-	local icon = Instance.new("Frame")
-	icon.Name = "Icon"
-	icon.Size = UDim2.new(0, 36, 0, 36)
-	icon.Position = UDim2.new(0, 12, 0, 12)
-	icon.BackgroundColor3 = color
-	icon.BackgroundTransparency = 0.8
-	icon.BorderSizePixel = 0
-	icon.Parent = notif
-	
-	local iconCorner = Instance.new("UICorner")
-	iconCorner.CornerRadius = UDim.new(0, 8)
-	iconCorner.Parent = icon
-	
-	local iconLabel = Instance.new("TextLabel")
-	iconLabel.Size = UDim2.new(1, 0, 1, 0)
-	iconLabel.BackgroundTransparency = 1
-	iconLabel.Text = ntype == "success" and "✓" or ntype == "error" and "✕" or ntype == "warning" and "!" or "i"
-	iconLabel.TextColor3 = color
-	iconLabel.Font = Enum.Font.GothamBold
-	iconLabel.TextSize = 18
-	iconLabel.Parent = icon
-	
-	-- Title
-	local titleLabel = Instance.new("TextLabel")
-	titleLabel.Name = "Title"
-	titleLabel.Size = UDim2.new(1, -70, 0, 20)
-	titleLabel.Position = UDim2.new(0, 56, 0, 12)
-	titleLabel.BackgroundTransparency = 1
-	titleLabel.Text = title
-	titleLabel.TextColor3 = C.text
-	titleLabel.Font = Enum.Font.GothamBold
-	titleLabel.TextSize = 14
-	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-	titleLabel.Parent = notif
-	
-	-- Body
-	local bodyLabel = Instance.new("TextLabel")
-	bodyLabel.Name = "Body"
-	bodyLabel.Size = UDim2.new(1, -70, 0, 20)
-	bodyLabel.Position = UDim2.new(0, 56, 0, 32)
-	bodyLabel.BackgroundTransparency = 1
-	bodyLabel.Text = body
-	bodyLabel.TextColor3 = C.textDim
-	bodyLabel.Font = Enum.Font.Gotham
-	bodyLabel.TextSize = 12
-	bodyLabel.TextXAlignment = Enum.TextXAlignment.Left
-	bodyLabel.TextWrapped = true
-	bodyLabel.Parent = notif
-	
-	-- Progress bar
-	local progress = Instance.new("Frame")
-	progress.Name = "Progress"
-	progress.Size = UDim2.new(1, -20, 0, 2)
-	progress.Position = UDim2.new(0, 10, 1, -6)
-	progress.BackgroundColor3 = color
-	progress.BackgroundTransparency = 0.3
-	progress.BorderSizePixel = 0
-	progress.Parent = notif
-	
-	local progressCorner = Instance.new("UICorner")
-	progressCorner.CornerRadius = UDim.new(0, 2)
-	progressCorner.Parent = progress
-	
-	-- Animate in
-	TweenService:Create(notif, TweenInfo.new(0.4, Enum.EasingStyle.Back), {Size = UDim2.new(0, 300, 0, 70)}):Play()
-	
-	-- Auto remove
-	task.delay(duration or 4, function()
-		TweenService:Create(progress, TweenInfo.new(duration or 4), {Size = UDim2.new(0, 0, 0, 2)}):Play()
-		task.wait(duration or 4)
-		TweenService:Create(notif, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
-			Size = UDim2.new(0, 300, 0, 0),
-			BackgroundTransparency = 1
-		}):Play()
-		for _, v in pairs(notif:GetDescendants()) do
-			if v:IsA("TextLabel") then
-				TweenService:Create(v, TweenInfo.new(0.2), {TextTransparency = 1}):Play()
-			elseif v:IsA("Frame") and v.Name ~= "Glow" then
-				TweenService:Create(v, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
-			elseif v:IsA("UIStroke") then
-				TweenService:Create(v, TweenInfo.new(0.2), {Transparency = 1}):Play()
-			end
-		end
-		task.wait(0.3)
-		notif:Destroy()
-	end)
+    ntype = ntype or "info"
+    local color = ntype == "success" and C.accent or ntype == "error" and Color3.fromRGB(248, 113, 113) or ntype == "warning" and Color3.fromRGB(250, 204, 21) or C.accentHi
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 280, 0, 0)
+    frame.BackgroundColor3 = C.panel
+    frame.BorderSizePixel = 0
+    frame.ClipsDescendants = true
+    frame.Parent = notifContainer
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = frame
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = color
+    stroke.Thickness = 1.5
+    stroke.Transparency = 0.4
+    stroke.Parent = frame
+    
+    -- Content
+    local icon = Instance.new("Frame")
+    icon.Size = UDim2.new(0, 32, 0, 32)
+    icon.Position = UDim2.new(0, 10, 0, 10)
+    icon.BackgroundColor3 = color
+    icon.BackgroundTransparency = 0.8
+    icon.BorderSizePixel = 0
+    icon.Parent = frame
+    
+    local iconCorner = Instance.new("UICorner")
+    iconCorner.CornerRadius = UDim.new(0, 8)
+    iconCorner.Parent = icon
+    
+    local iconLbl = Instance.new("TextLabel")
+    iconLbl.Size = UDim2.new(1, 0, 1, 0)
+    iconLbl.BackgroundTransparency = 1
+    iconLbl.Text = ntype == "success" and "✓" or ntype == "error" and "✕" or "!"
+    iconLbl.TextColor3 = color
+    iconLbl.Font = Enum.Font.GothamBold
+    iconLbl.TextSize = 16
+    iconLbl.Parent = icon
+    
+    local titleLbl = Instance.new("TextLabel")
+    titleLbl.Size = UDim2.new(1, -60, 0, 20)
+    titleLbl.Position = UDim2.new(0, 50, 0, 10)
+    titleLbl.BackgroundTransparency = 1
+    titleLbl.Text = title
+    titleLbl.TextColor3 = C.text
+    titleLbl.Font = Enum.Font.GothamBold
+    titleLbl.TextSize = 13
+    titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+    titleLbl.Parent = frame
+    
+    local bodyLbl = Instance.new("TextLabel")
+    bodyLbl.Size = UDim2.new(1, -60, 0, 20)
+    bodyLbl.Position = UDim2.new(0, 50, 0, 28)
+    bodyLbl.BackgroundTransparency = 1
+    bodyLbl.Text = body
+    bodyLbl.TextColor3 = C.textDim
+    bodyLbl.Font = Enum.Font.Gotham
+    bodyLbl.TextSize = 11
+    bodyLbl.TextXAlignment = Enum.TextXAlignment.Left
+    bodyLbl.Parent = frame
+    
+    -- Animate in
+    TweenService:Create(frame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {Size = UDim2.new(0, 280, 0, 60)}):Play()
+    
+    -- Cleanup
+    task.delay(duration or 4, function()
+        local out = TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
+            Size = UDim2.new(0, 280, 0, 0),
+            BackgroundTransparency = 1
+        })
+        out:Play()
+        
+        for _, v in ipairs(frame:GetDescendants()) do
+            if v:IsA("TextLabel") then
+                TweenService:Create(v, TweenInfo.new(0.2), {TextTransparency = 1}):Play()
+            elseif v:IsA("Frame") then
+                TweenService:Create(v, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
+            elseif v:IsA("UIStroke") then
+                TweenService:Create(v, TweenInfo.new(0.2), {Transparency = 1}):Play()
+            end
+        end
+        
+        task.wait(0.35)
+        frame:Destroy()
+    end)
 end
 getgenv()._lav_notify = notify
 
--- Smart Player Resolver (Partial name matching, case insensitive)
-local function resolvePlayer(arg)
-	if not arg or arg == "" then return nil end
-	arg = arg:lower()
-	
-	-- Special keywords
-	if arg == "me" or arg == "local" then return lp end
-	if arg == "all" then return "all" end
-	if arg == "others" then return "others" end
-	if arg == "random" then 
-		local list = Players:GetPlayers()
-		return list[math.random(1, #list)]
-	end
-	
-	-- Partial name matching (case insensitive)
-	for _, p in ipairs(Players:GetPlayers()) do
-		if p.Name:lower():sub(1, #arg) == arg or p.DisplayName:lower():sub(1, #arg) == arg then
-			return p
-		end
-	end
-	return nil
+-- Main UI (Simplified, less glitchy)
+local main = Instance.new("Frame")
+main.Name = "Main"
+main.Size = UDim2.new(0, 340, 0, 50)
+main.Position = UDim2.new(1, -350, 0, 20)
+main.BackgroundColor3 = C.panel
+main.BackgroundTransparency = 0.1
+main.BorderSizePixel = 0
+main.Parent = gui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = main
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Color = C.accent
+mainStroke.Thickness = 1
+mainStroke.Transparency = 0.5
+mainStroke.Parent = main
+
+-- Top bar content
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(0, 100, 1, 0)
+title.Position = UDim2.new(0, 15, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "LAVENDER"
+title.TextColor3 = C.accentHi
+title.Font = Enum.Font.GothamBold
+title.TextSize = 16
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = main
+
+-- Stats
+local statsFrame = Instance.new("Frame")
+statsFrame.Size = UDim2.new(0, 70, 0, 28)
+statsFrame.Position = UDim2.new(0, 120, 0.5, -14)
+statsFrame.BackgroundColor3 = C.surface
+statsFrame.BackgroundTransparency = 0.3
+statsFrame.BorderSizePixel = 0
+statsFrame.Parent = main
+
+local statsCorner = Instance.new("UICorner")
+statsCorner.CornerRadius = UDim.new(0, 6)
+statsCorner.Parent = statsFrame
+
+local fpsLbl = Instance.new("TextLabel")
+fpsLbl.Size = UDim2.new(1, 0, 0.5, 0)
+fpsLbl.BackgroundTransparency = 1
+fpsLbl.Text = "60 FPS"
+fpsLbl.TextColor3 = Color3.fromRGB(134, 239, 172)
+fpsLbl.Font = Enum.Font.GothamBold
+fpsLbl.TextSize = 9
+fpsLbl.Parent = statsFrame
+
+local pingLbl = Instance.new("TextLabel")
+pingLbl.Size = UDim2.new(1, 0, 0.5, 0)
+pingLbl.Position = UDim2.new(0, 0, 0.5, 0)
+pingLbl.BackgroundTransparency = 1
+pingLbl.Text = "20ms"
+pingLbl.TextColor3 = Color3.fromRGB(134, 239, 172)
+pingLbl.Font = Enum.Font.GothamBold
+pingLbl.TextSize = 9
+pingLbl.Parent = statsFrame
+
+-- Buttons
+local cmdBtn = Instance.new("TextButton")
+cmdBtn.Size = UDim2.new(0, 32, 0, 32)
+cmdBtn.Position = UDim2.new(1, -85, 0.5, -16)
+cmdBtn.BackgroundColor3 = C.accentDk
+cmdBtn.BackgroundTransparency = 0.3
+cmdBtn.Text = ">_"
+cmdBtn.TextColor3 = C.accentHi
+cmdBtn.Font = Enum.Font.GothamBold
+cmdBtn.TextSize = 14
+cmdBtn.AutoButtonColor = false
+cmdBtn.Parent = main
+
+local cmdBtnCorner = Instance.new("UICorner")
+cmdBtnCorner.CornerRadius = UDim.new(0, 8)
+cmdBtnCorner.Parent = cmdBtn
+
+local settingsBtn = Instance.new("TextButton")
+settingsBtn.Size = UDim2.new(0, 32, 0, 32)
+settingsBtn.Position = UDim2.new(1, -48, 0.5, -16)
+settingsBtn.BackgroundColor3 = C.accentDk
+settingsBtn.BackgroundTransparency = 0.3
+settingsBtn.Text = "⚙"
+settingsBtn.TextColor3 = C.accentHi
+settingsBtn.Font = Enum.Font.GothamBold
+settingsBtn.TextSize = 16
+settingsBtn.AutoButtonColor = false
+settingsBtn.Parent = main
+
+local settingsBtnCorner = Instance.new("UICorner")
+settingsBtnCorner.CornerRadius = UDim.new(0, 8)
+settingsBtnCorner.Parent = settingsBtn
+
+-- Expandable Panel
+local panel = Instance.new("Frame")
+panel.Name = "Panel"
+panel.Size = UDim2.new(1, 0, 0, 0)
+panel.Position = UDim2.new(0, 0, 0, 50)
+panel.BackgroundColor3 = C.surface
+panel.BackgroundTransparency = 0.2
+panel.BorderSizePixel = 0
+panel.ClipsDescendants = true
+panel.Parent = main
+
+local panelCorner = Instance.new("UICorner")
+panelCorner.CornerRadius = UDim.new(0, 0)
+panelCorner.Parent = panel
+
+-- Input
+local input = Instance.new("TextBox")
+input.Size = UDim2.new(1, -20, 0, 36)
+input.Position = UDim2.new(0, 10, 0, 10)
+input.BackgroundColor3 = C.bg
+input.BackgroundTransparency = 0.5
+input.TextColor3 = C.text
+input.PlaceholderColor3 = Color3.fromRGB(100, 90, 130)
+input.Font = Enum.Font.GothamSemibold
+input.TextSize = 12
+input.PlaceholderText = state.prefix .. "command"
+input.Text = ""
+input.ClearTextOnFocus = false
+input.Parent = panel
+
+local inputCorner = Instance.new("UICorner")
+inputCorner.CornerRadius = UDim.new(0, 8)
+inputCorner.Parent = input
+
+local inputStroke = Instance.new("UIStroke")
+inputStroke.Color = C.accentDk
+inputStroke.Thickness = 1
+inputStroke.Transparency = 0.5
+inputStroke.Parent = input
+
+-- Command List (simplified - just input for now to prevent lag)
+local hint = Instance.new("TextLabel")
+hint.Size = UDim2.new(1, -20, 0, 20)
+hint.Position = UDim2.new(0, 10, 0, 50)
+hint.BackgroundTransparency = 1
+hint.Text = "Type command and press Enter"
+hint.TextColor3 = C.textDim
+hint.Font = Enum.Font.Gotham
+hint.TextSize = 10
+hint.Parent = panel
+
+-- Toggle Logic
+local expanded = false
+local function toggle()
+    expanded = not expanded
+    if expanded then
+        TweenService:Create(main, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {Size = UDim2.new(0, 340, 0, 150)}):Play()
+        TweenService:Create(panel, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 100)}):Play()
+    else
+        TweenService:Create(main, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {Size = UDim2.new(0, 340, 0, 50)}):Play()
+        TweenService:Create(panel, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 0)}):Play()
+        input:ReleaseFocus()
+    end
 end
 
--- Command Registry with Aliases
-local CMDS = {}
-local function register(name, aliases, desc, args, fn)
-	CMDS[name] = {name = name, aliases = aliases, desc = desc, args = args, fn = fn}
-	for _, alias in ipairs(aliases) do
-		CMDS[alias] = CMDS[name]
-	end
+cmdBtn.MouseButton1Click:Connect(toggle)
+
+-- Command Execution
+input.FocusLost:Connect(function(enter)
+    if enter and input.Text ~= "" then
+        local text = input.Text
+        -- Auto-remove prefix if typed
+        if text:sub(1, #state.prefix) == state.prefix then
+            text = text:sub(#state.prefix + 1)
+        end
+        runCmd(text)
+        input.Text = ""
+    end
+end)
+
+-- CHAT HOOK (FIXED - Using Player.Chatted)
+local function onChatted(msg)
+    if msg:sub(1, #state.prefix) == state.prefix then
+        local cmd = msg:sub(#state.prefix + 1)
+        if cmd ~= "" then
+            runCmd(cmd)
+        end
+    end
 end
 
--- Movement Commands
-register("speed", {"walkspeed", "sp", "ws"}, "Sets WalkSpeed", "<value> [player]", function(args)
-	local v = tonumber(args[1])
-	if not v then notify("Error", "Usage: speed <value> [player]", 3, "error") return end
-	local target = args[2] and resolvePlayer(args[2]) or lp
-	if target == "all" then
-		for _, p in ipairs(Players:GetPlayers()) do
-			local h = p.Character and p.Character:FindFirstChild("Humanoid")
-			if h then h.WalkSpeed = v end
-		end
-		notify("Speed", "Set all players speed to " .. v, 3, "success")
-	elseif target == "others" then
-		for _, p in ipairs(Players:GetPlayers()) do
-			if p ~= lp then
-				local h = p.Character and p.Character:FindFirstChild("Humanoid")
-				if h then h.WalkSpeed = v end
-			end
-		end
-		notify("Speed", "Set others speed to " .. v, 3, "success")
-	elseif target and target ~= lp then
-		local h = target.Character and target.Character:FindFirstChild("Humanoid")
-		if h then h.WalkSpeed = v; notify("Speed", target.Name .. " → " .. v, 3, "success") end
-	else
-		local h = lp.Character and lp.Character:FindFirstChild("Humanoid")
-		if h then h.WalkSpeed = v; notify("Speed", "You → " .. v, 3, "success") end
-	end
+lp.Chatted:Connect(onChatted)
+
+-- Also hook legacy chat if present
+pcall(function()
+    local chatEvents = game:GetService("ReplicatedStorage"):WaitForChild("DefaultChatSystemChatEvents", 2)
+    if chatEvents then
+        local sayEvent = chatEvents:WaitForChild("SayMessageRequest")
+        local oldSay = sayEvent.FireServer
+        sayEvent.FireServer = function(self, msg, channel)
+            if msg:sub(1, #state.prefix) == state.prefix then
+                local cmd = msg:sub(#state.prefix + 1)
+                if cmd ~= "" then
+                    runCmd(cmd)
+                    return -- Don't send to chat
+                end
+            end
+            return oldSay(self, msg, channel)
+        end
+    end
 end)
 
-register("jump", {"jumppower", "jp"}, "Sets JumpPower", "<value> [player]", function(args)
-	local v = tonumber(args[1])
-	if not v then notify("Error", "Usage: jump <value> [player]", 3, "error") return end
-	local target = args[2] and resolvePlayer(args[2]) or lp
-	if target == "all" then
-		for _, p in ipairs(Players:GetPlayers()) do
-			local h = p.Character and p.Character:FindFirstChild("Humanoid")
-			if h then h.JumpPower = v end
-		end
-		notify("Jump", "Set all players jump to " .. v, 3, "success")
-	elseif target and target ~= lp then
-		local h = target.Character and target.Character:FindFirstChild("Humanoid")
-		if h then h.JumpPower = v; notify("Jump", target.Name .. " → " .. v, 3, "success") end
-	else
-		local h = lp.Character and lp.Character:FindFirstChild("Humanoid")
-		if h then h.JumpPower = v; notify("Jump", "You → " .. v, 3, "success") end
-	end
+-- Stats Loop
+task.spawn(function()
+    local fps = 60
+    local last = tick()
+    while task.wait(0.5) do
+        local now = tick()
+        local delta = now - last
+        last = now
+        fps = math.floor(1/delta)
+        
+        local ping = 0
+        pcall(function()
+            ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+        end)
+        
+        fpsLbl.Text = fps .. " FPS"
+        fpsLbl.TextColor3 = fps > 50 and Color3.fromRGB(134, 239, 172) or fps > 30 and Color3.fromRGB(250, 204, 21) or Color3.fromRGB(248, 113, 113)
+        
+        pingLbl.Text = ping .. "ms"
+        pingLbl.TextColor3 = ping < 100 and Color3.fromRGB(134, 239, 172) or ping < 200 and Color3.fromRGB(250, 204, 21) or Color3.fromRGB(248, 113, 113)
+    end
 end)
 
-register("fly", {"fl"}, "Toggles fly mode", "[speed]", function(args)
-	state.fly = not state.fly
-	if state.fly then
-		if args[1] then state.flySpeed = tonumber(args[1]) or 60 end
-		local hum = lp.Character and lp.Character:FindFirstChild("Humanoid")
-		local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-		if not hum or not hrp then state.fly = false return end
-		hum.PlatformStand = true
-		if state.flyConn then state.flyConn:Disconnect() end
-		state.flyConn = RunService.RenderStepped:Connect(function()
-			if not state.fly then return end
-			local r = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-			if not r then return end
-			local dir = Vector3.zero
-			if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir += cam.CFrame.LookVector end
-			if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir -= cam.CFrame.LookVector end
-			if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir -= cam.CFrame.RightVector end
-			if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir += cam.CFrame.RightVector end
-			if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir += Vector3.yAxis end
-			if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir -= Vector3.yAxis end
-			r.AssemblyLinearVelocity = dir.Magnitude > 0 and dir.Unit * state.flySpeed or Vector3.zero
-			r.CFrame = CFrame.new(r.Position, r.Position + cam.CFrame.LookVector)
-		end)
-		notify("Fly", "Enabled (Speed: " .. state.flySpeed .. ")", 3, "success")
-	else
-		if state.flyConn then state.flyConn:Disconnect(); state.flyConn = nil end
-		local h = lp.Character and lp.Character:FindFirstChild("Humanoid")
-		if h then h.PlatformStand = false end
-		local r = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-		if r then r.AssemblyLinearVelocity = Vector3.zero end
-		notify("Fly", "Disabled", 3, "warning")
-	end
-end)
-
-register("noclip", {"nc", "clip"}, "Toggles noclip", "", function()
-	state.noclip = not state.noclip
-	if state.noclip then
-		if state.noclipConn then state.noclipConn:Disconnect() end
-		state.noclipConn = RunService.Stepped:Connect(function()
-			if not state.noclip then return end
-			local c = lp.Character
-			if not c then return end
-			for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end
-		end)
-		notify("Noclip", "Enabled", 3, "success")
-	else
-		if state.noclipConn then state.noclipConn:Disconnect(); state.noclipConn = nil end
-		local c = lp.Character
-		if c then for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = true end end end
-		notify("Noclip", "Disabled", 3, "warning")
-	end
-end)
-
-register("god", {"g", "godmode"}, "Toggles godmode", "", function()
-	state.god = not state.god
-	if state.god then
-		if state.godConn then state.godConn:Disconnect() end
-		local h = lp.Character and lp.Character:FindFirstChild("Humanoid")
-		if h then h.MaxHealth = math.huge; h.Health = math.huge end
-		state.godConn = RunService.Heartbeat:Connect(function()
-			if not state.god then return end
-			local hh = lp.Character and lp.Character:FindFirstChild("Humanoid")
-			if hh then hh.Health = math.huge end
-		end)
-		notify("God", "Enabled", 3, "success")
-	else
-		if state.godConn then state.godConn:Disconnect(); state.godConn = nil end
-		local h = lp.Character and lp.Character:FindFirstChild("Humanoid")
-		if h then h.MaxHealth = 100; h.Health = 100 end
-		notify("God", "Disabled", 3, "warning")
-	end
-end)
-
-register("invisible", {"invis", "inv"}, "Toggles local invisibility", "", function()
-	state.invisible = not state.invisible
-	local c = lp.Character
-	if not c then return end
-	for _, p in ipairs(c:GetDescendants()) do
-		if p:IsA("BasePart") then p.LocalTransparencyModifier = state.invisible and 1 or 0 end
-	end
-	notify("Invisible", state.invisible and "Enabled" or "Disabled", 3, state.invisible and "success" or "warning")
-end)
-
--- Teleport Commands
-register("goto", {"to", "tp"}, "Teleports to player", "<player>", function(args)
-	local target = resolvePlayer(args[1])
-	if not target or target == "all" or target == "others" then notify("Error", "Player not found", 3, "error") return end
-	local r = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-	local tr = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
-	if r and tr then 
-		r.CFrame = tr.CFrame + Vector3.new(0, 3, 0)
-		notify("Goto", "Teleported to " .. target.Name, 3, "success")
-	end
-end)
-
-register("bring", {"br"}, "Brings player to you", "<player>", function(args)
-	local target = resolvePlayer(args[1])
-	if not target or target == "all" or target == "others" or target == lp then notify("Error", "Invalid target", 3, "error") return end
-	local r = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-	local tr = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
-	if r and tr then 
-		tr.CFrame = r.CFrame + Vector3.new(3, 0, 0)
-		notify("Bring", "Brought " .. target.Name, 3, "success")
-	end
-end)
-
-register("fling", {"fling"}, "Flings a player", "<player>", function(args)
-	local target = resolvePlayer(args[1])
-	if not target or target == "all" or target == "others" or target == lp then notify("Error", "Invalid target", 3, "error") return end
-	local r = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-	local tr = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
-	if r and tr then
-		tr.CFrame = r.CFrame
-		tr.AssemblyLinearVelocity = Vector3.new(math.random(-300, 300), math.random(500, 800), math.random(-300, 300))
-		notify("Fling", "Flung " .. target.Name, 3, "success")
-	end
-end)
-
--- ESP & Visual Commands with Targeting
-local function clearESP()
-	for _, v in ipairs(state.espObjs) do pcall(function() v:Destroy() end) end
-	state.espObjs = {}
-	state.targetESP = {}
-end
-
-local function applyESP(target)
-	if target == lp then return end
-	if not target.Character then return end
-	
-	local head = target.Character:FindFirstChild("Head") or target.Character:FindFirstChild("HumanoidRootPart")
-	if not head then return end
-	
-	-- Check if already ESP'd
-	for _, obj in ipairs(state.espObjs) do
-		if obj.Adornee and obj.Adornee:IsDescendantOf(target.Character) then return end
-	end
-	
-	-- Billboard
-	local bb = Instance.new("BillboardGui")
-	bb.Name = "LavESP"
-	bb.Adornee = head
-	bb.AlwaysOnTop = true
-	bb.Size = UDim2.fromOffset(100, 30)
-	bb.StudsOffset = Vector3.new(0, 2.5, 0)
-	bb.ResetOnSpawn = false
-	bb.Parent = head
-	
-	local nl = Instance.new("TextLabel", bb)
-	nl.Size = UDim2.fromScale(1, 1)
-	nl.BackgroundTransparency = 1
-	nl.TextColor3 = C.accentHi
-	nl.Font = Enum.Font.GothamBold
-	nl.TextSize = 11
-	nl.TextXAlignment = Enum.TextXAlignment.Center
-	nl.Text = target.Name
-	
-	-- Highlight
-	local hl = Instance.new("Highlight")
-	hl.Name = "LavHL"
-	hl.FillTransparency = 1
-	hl.OutlineColor = C.accent
-	hl.OutlineTransparency = 0
-	hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-	hl.Parent = target.Character
-	
-	table.insert(state.espObjs, bb)
-	table.insert(state.espObjs, hl)
-	table.insert(state.targetESP, target)
-end
-
-register("esp", {"wallhack", "wh"}, "Toggles ESP", "[me/all/others/player]", function(args)
-	if not args[1] or args[1] == "" then
-		-- Toggle all ESP
-		state.esp = not state.esp
-		if state.esp then
-			for _, p in ipairs(Players:GetPlayers()) do
-				if p ~= lp then applyESP(p) end
-			end
-			notify("ESP", "Enabled for all players", 3, "success")
-		else
-			clearESP()
-			notify("ESP", "Disabled", 3, "warning")
-		end
-	else
-		local target = resolvePlayer(args[1])
-		if target == "all" then
-			state.esp = true
-			for _, p in ipairs(Players:GetPlayers()) do
-				if p ~= lp then applyESP(p) end
-			end
-			notify("ESP", "Enabled for all", 3, "success")
-		elseif target == "others" then
-			state.esp = true
-			for _, p in ipairs(Players:GetPlayers()) do
-				if p ~= lp then applyESP(p) end
-			end
-			notify("ESP", "Enabled for others", 3, "success")
-		elseif target and target ~= lp then
-			applyESP(target)
-			notify("ESP", "Enabled for " .. target.Name, 3, "success")
-		end
-	end
-end)
-
-register("unesp", {"noesp"}, "Removes ESP", "[all/player]", function(args)
-	if not args[1] or args[1] == "" or args[1] == "all" then
-		clearESP()
-		state.esp = false
-		notify("ESP", "Cleared all", 3, "warning")
-	else
-		local target = resolvePlayer(args[1])
-		if target and target ~= "all" and target ~= "others" then
-			for i = #state.espObjs, 1, -1 do
-				local obj = state.espObjs[i]
-				if obj and (obj.Adornee and obj.Adornee:IsDescendantOf(target.Character)) or 
-				   (obj.Parent and obj.Parent:IsDescendantOf(target.Character)) then
-					pcall(function() obj:Destroy() end)
-					table.remove(state.espObjs, i)
-				end
-			end
-			notify("ESP", "Removed from " .. target.Name, 3, "warning")
-		end
-	end
-end)
-
-register("chams", {"cham"}, "Toggles chams", "", function()
-	state.chams = not state.chams
-	if state.chams then
-		for _, p in ipairs(Players:GetPlayers()) do
-			if p ~= lp and p.Character then
-				local hl = Instance.new("Highlight")
-				hl.Name = "LavCham"
-				hl.FillColor = C.accentDk
-				hl.FillTransparency = 0.6
-				hl.OutlineColor = C.accentHi
-				hl.OutlineTransparency = 0
-				hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-				hl.Parent = p.Character
-				table.insert(state.chamObjs, hl)
-			end
-		end
-		notify("Chams", "Enabled", 3, "success")
-	else
-		for _, v in ipairs(state.chamObjs) do pcall(function() v:Destroy() end) end
-		state.chamObjs = {}
-		notify("Chams", "Disabled", 3, "warning")
-	end
-end)
-
-register("tracers", {"tracer", "lines"}, "Toggles tracers", "", function()
-	state.tracers = not state.tracers
-	if not state.tracers then
-		for _, v in ipairs(state.traceObjs) do pcall(function() v.line:Remove() end) end
-		state.traceObjs = {}
-		notify("Tracers", "Disabled", 3, "warning")
-	else
-		notify("Tracers", "Enabled", 3, "success")
-	end
-end)
-
--- Server Commands
-register("rejoin", {"rj"}, "Rejoins current server", "", function()
-	notify("Rejoin", "Rejoining...", 3, "warning")
-	TeleportService:Teleport(game.PlaceId, lp)
-end)
-
-register("serverhop", {"sh", "shop", "hop"}, "Joins a different server", "", function()
-	notify("ServerHop", "Finding new server...", 3, "warning")
-	local success, result = pcall(function()
-		local servers = HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
-		for _, server in ipairs(servers.data) do
-			if server.playing < server.maxPlayers and server.id ~= game.JobId then
-				TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, lp)
-				return
-			end
-		end
-	end)
-	if not success then notify("Error", "Failed to serverhop", 3, "error") end
-end)
-
-register("serverid", {"jobid", "sid"}, "Shows server JobId", "", function()
-	notify("Server ID", game.JobId ~= "" and game.JobId or "Private Server", 5, "info")
-	setclipboard(game.JobId)
-end)
-
--- Utility Commands
-register("cmds", {"commands", "help"}, "Shows command list", "", function()
-	notify("Commands", "Check the UI panel for all commands", 3, "info")
-end)
-
-register("kill", {"die", "reset"}, "Kills your character", "", function()
-	local h = lp.Character and lp.Character:FindFirstChild("Humanoid")
-	if h then h.Health = 0; notify("Kill", "Reset character", 3, "warning") end
-end)
-
-register("sit", {}, "Makes you sit", "", function()
-	local h = lp.Character and lp.Character:FindFirstChild("Humanoid")
-	if h then h.Sit = true end
-end)
-
-register("grav", {"gravity"}, "Sets workspace gravity", "<value>", function(args)
-	local v = tonumber(args[1])
-	if v then workspace.Gravity = v; notify("Gravity", "Set to " .. v, 3, "success") end
-end)
-
-register("time", {"timeset", "clock"}, "Sets time of day", "<0-24>", function(args)
-	local v = tonumber(args[1])
-	if v then Lighting.ClockTime = v; notify("Time", "Set to " .. v, 3, "success") end
-end)
-
-register("notify", {"n", "print"}, "Test notification", "<message>", function(args)
-	notify("Test", table.concat(args, " "), 3, "info")
-end)
-
-register("clear", {"cls"}, "Clears all visuals", "", function()
-	clearESP()
-	for _, v in ipairs(state.chamObjs) do pcall(function() v:Destroy() end) end
-	state.chamObjs = {}
-	for _, v in ipairs(state.traceObjs) do pcall(function() v.line:Remove() end) end
-	state.traceObjs = {}
-	state.esp = false
-	state.chams = false
-	state.tracers = false
-	notify("Clear", "Removed all visuals", 3, "success")
-end)
-
--- Command Runner
-local function runCmd(input)
-	input = input:lower()
-	local parts = {}
-	for w in input:gmatch("%S+") do table.insert(parts, w) end
-	if #parts == 0 then return end
-	
-	local cmdName = table.remove(parts, 1)
-	local cmd = CMDS[cmdName]
-	
-	if cmd then
-		task.spawn(cmd.fn, parts)
-	else
-		notify("Error", "Unknown command: " .. cmdName, 3, "error")
-	end
-end
-
--- Modern UI Creation
-local function createUI()
-	local gui = Instance.new("ScreenGui")
-	gui.Name = "LavenderAdmin"
-	gui.IgnoreGuiInset = true
-	gui.ResetOnSpawn = false
-	gui.DisplayOrder = 999
-	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	gui.Parent = pg
-	
-	-- Main Container (Draggable/Mobile friendly)
-	local main = Instance.new("Frame")
-	main.Name = "Main"
-	main.Size = UDim2.new(0, 360, 0, 50)
-	main.Position = UDim2.new(1, -370, 0, 20)
-	main.BackgroundColor3 = C.panel
-	main.BackgroundTransparency = 0.1
-	main.BorderSizePixel = 0
-	main.Parent = gui
-	
-	-- Corner
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 12)
-	corner.Parent = main
-	
-	-- Stroke
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = C.accent
-	stroke.Thickness = 1
-	stroke.Transparency = 0.5
-	stroke.Parent = main
-	
-	-- Gradient
-	local grad = Instance.new("UIGradient")
-	grad.Color = ColorSequence.new(C.panel, C.bg)
-	grad.Rotation = 90
-	grad.Parent = main
-	
-	-- Top Bar
-	local topBar = Instance.new("Frame")
-	topBar.Name = "TopBar"
-	topBar.Size = UDim2.new(1, 0, 0, 50)
-	topBar.BackgroundTransparency = 1
-	topBar.Parent = main
-	
-	-- Logo/Title
-	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(0, 120, 1, 0)
-	title.Position = UDim2.new(0, 15, 0, 0)
-	title.BackgroundTransparency = 1
-	title.Text = "LAVENDER"
-	title.TextColor3 = C.accentHi
-	title.Font = Enum.Font.GothamBold
-	title.TextSize = 16
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.Parent = topBar
-	
-	-- FPS/Ping Display
-	local statsFrame = Instance.new("Frame")
-	statsFrame.Size = UDim2.new(0, 80, 0, 30)
-	statsFrame.Position = UDim2.new(0, 140, 0.5, -15)
-	statsFrame.BackgroundColor3 = C.surface
-	statsFrame.BackgroundTransparency = 0.5
-	statsFrame.Parent = topBar
-	
-	local statsCorner = Instance.new("UICorner")
-	statsCorner.CornerRadius = UDim.new(0, 6)
-	statsCorner.Parent = statsFrame
-	
-	local fpsLabel = Instance.new("TextLabel")
-	fpsLabel.Name = "FPS"
-	fpsLabel.Size = UDim2.new(1, 0, 0.5, 0)
-	fpsLabel.BackgroundTransparency = 1
-	fpsLabel.Text = "60 FPS"
-	fpsLabel.TextColor3 = C.success
-	fpsLabel.Font = Enum.Font.GothamBold
-	fpsLabel.TextSize = 10
-	fpsLabel.Parent = statsFrame
-	
-	local pingLabel = Instance.new("TextLabel")
-	pingLabel.Name = "Ping"
-	pingLabel.Size = UDim2.new(1, 0, 0.5, 0)
-	pingLabel.Position = UDim2.new(0, 0, 0.5, 0)
-	pingLabel.BackgroundTransparency = 1
-	pingLabel.Text = "20ms"
-	pingLabel.TextColor3 = C.success
-	pingLabel.Font = Enum.Font.GothamBold
-	pingLabel.TextSize = 10
-	pingLabel.Parent = statsFrame
-	
-	-- Control Buttons
-	local btnY = 10
-	local cmds = Instance.new("TextButton")
-	cmds.Name = "CmdsBtn"
-	cmds.Size = UDim2.new(0, 36, 0, 36)
-	cmds.Position = UDim2.new(1, -95, 0, 7)
-	cmds.BackgroundColor3 = C.accentDk
-	cmds.BackgroundTransparency = 0.3
-	cmds.Text = ">_"
-	cmds.TextColor3 = C.accentHi
-	cmds.Font = Enum.Font.GothamBold
-	cmds.TextSize = 14
-	cmds.Parent = topBar
-	
-	local cmdsCorner = Instance.new("UICorner")
-	cmdsCorner.CornerRadius = UDim.new(0, 8)
-	cmdsCorner.Parent = cmds
-	
-	local settings = Instance.new("TextButton")
-	settings.Name = "SettingsBtn"
-	settings.Size = UDim2.new(0, 36, 0, 36)
-	settings.Position = UDim2.new(1, -52, 0, 7)
-	settings.BackgroundColor3 = C.accentDk
-	settings.BackgroundTransparency = 0.3
-	settings.Text = "⚙"
-	settings.TextColor3 = C.accentHi
-	settings.Font = Enum.Font.GothamBold
-	settings.TextSize = 16
-	settings.Parent = topBar
-	
-	local settingsCorner = Instance.new("UICorner")
-	settingsCorner.CornerRadius = UDim.new(0, 8)
-	settingsCorner.Parent = settings
-	
-	-- Collapse Button
-	local collapse = Instance.new("TextButton")
-	collapse.Name = "Collapse"
-	collapse.Size = UDim2.new(0, 40, 0, 20)
-	collapse.Position = UDim2.new(0.5, -20, 1, -10)
-	collapse.BackgroundColor3 = C.accentDk
-	collapse.BackgroundTransparency = 0.5
-	collapse.Text = "▼"
-	collapse.TextColor3 = C.textDim
-	collapse.Font = Enum.Font.GothamBold
-	collapse.TextSize = 12
-	collapse.Parent = main
-	
-	local collapseCorner = Instance.new("UICorner")
-	collapseCorner.CornerRadius = UDim.new(0, 4)
-	collapseCorner.Parent = collapse
-	
-	-- Command Panel (Expandable)
-	local cmdPanel = Instance.new("Frame")
-	cmdPanel.Name = "CmdPanel"
-	cmdPanel.Size = UDim2.new(1, 0, 0, 0)
-	cmdPanel.Position = UDim2.new(0, 0, 0, 50)
-	cmdPanel.BackgroundColor3 = C.surface
-	cmdPanel.BackgroundTransparency = 0.2
-	cmdPanel.BorderSizePixel = 0
-	cmdPanel.ClipsDescendants = true
-	cmdPanel.Parent = main
-	
-	local cmdPanelCorner = Instance.new("UICorner")
-	cmdPanelCorner.CornerRadius = UDim.new(0, 0)
-	cmdPanelCorner.Parent = cmdPanel
-	
-	-- Command Input
-	local inputBox = Instance.new("TextBox")
-	inputBox.Size = UDim2.new(1, -20, 0, 36)
-	inputBox.Position = UDim2.new(0, 10, 0, 10)
-	inputBox.BackgroundColor3 = C.bg
-	inputBox.BackgroundTransparency = 0.5
-	inputBox.TextColor3 = C.text
-	inputBox.PlaceholderColor3 = C.textDark
-	inputBox.Font = Enum.Font.GothamSemibold
-	inputBox.TextSize = 12
-	inputBox.PlaceholderText = state.prefix .. "command [args...]"
-	inputBox.Text = ""
-	inputBox.ClearTextOnFocus = false
-	inputBox.Parent = cmdPanel
-	
-	local inputCorner = Instance.new("UICorner")
-	inputCorner.CornerRadius = UDim.new(0, 8)
-	inputCorner.Parent = inputBox
-	
-	local inputStroke = Instance.new("UIStroke")
-	inputStroke.Color = C.accentDk
-	inputStroke.Thickness = 1
-	inputStroke.Transparency = 0.5
-	inputStroke.Parent = inputBox
-	
-	-- Command List
-	local scroll = Instance.new("ScrollingFrame")
-	scroll.Name = "CmdList"
-	scroll.Size = UDim2.new(1, -20, 0, 200)
-	scroll.Position = UDim2.new(0, 10, 0, 54)
-	scroll.BackgroundTransparency = 1
-	scroll.BorderSizePixel = 0
-	scroll.ScrollBarThickness = 4
-	scroll.ScrollBarImageColor3 = C.accent
-	scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-	scroll.Parent = cmdPanel
-	
-	local layout = Instance.new("UIListLayout")
-	layout.Padding = UDim.new(0, 4)
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Parent = scroll
-	
-	-- Populate Command List
-	local uniqueCmds = {}
-	for name, data in pairs(CMDS) do
-		if name == data.name then -- Only add primary names
-			table.insert(uniqueCmds, data)
-		end
-	end
-	table.sort(uniqueCmds, function(a, b) return a.name < b.name end)
-	
-	for i, cmd in ipairs(uniqueCmds) do
-		local row = Instance.new("Frame")
-		row.Name = cmd.name
-		row.Size = UDim2.new(1, 0, 0, 40)
-		row.BackgroundColor3 = i % 2 == 0 and C.bg or C.surface
-		row.BackgroundTransparency = 0.3
-		row.BorderSizePixel = 0
-		row.LayoutOrder = i
-		row.Parent = scroll
-		
-		local rowCorner = Instance.new("UICorner")
-		rowCorner.CornerRadius = UDim.new(0, 6)
-		rowCorner.Parent = row
-		
-		-- Command Name
-		local nameLabel = Instance.new("TextLabel")
-		nameLabel.Size = UDim2.new(0, 100, 1, 0)
-		nameLabel.Position = UDim2.new(0, 10, 0, 0)
-		nameLabel.BackgroundTransparency = 1
-		nameLabel.Text = state.prefix .. cmd.name
-		nameLabel.TextColor3 = C.accent
-		nameLabel.Font = Enum.Font.GothamBold
-		nameLabel.TextSize = 11
-		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-		nameLabel.Parent = row
-		
-		-- Description
-		local descLabel = Instance.new("TextLabel")
-		descLabel.Size = UDim2.new(1, -180, 1, 0)
-		descLabel.Position = UDim2.new(0, 115, 0, 0)
-		descLabel.BackgroundTransparency = 1
-		descLabel.Text = cmd.desc .. " " .. (cmd.args or "")
-		descLabel.TextColor3 = C.textDim
-		descLabel.Font = Enum.Font.Gotham
-		descLabel.TextSize = 10
-		descLabel.TextXAlignment = Enum.TextXAlignment.Left
-		descLabel.TextTruncate = Enum.TextTruncate.AtEnd
-		descLabel.Parent = row
-		
-		-- Run Button
-		local runBtn = Instance.new("TextButton")
-		runBtn.Size = UDim2.new(0, 50, 0, 28)
-		runBtn.Position = UDim2.new(1, -60, 0.5, -14)
-		runBtn.BackgroundColor3 = C.accentDk
-		runBtn.BackgroundTransparency = 0.2
-		runBtn.Text = "Run"
-		runBtn.TextColor3 = C.accentHi
-		runBtn.Font = Enum.Font.GothamBold
-		runBtn.TextSize = 10
-		runBtn.Parent = row
-		
-		local runCorner = Instance.new("UICorner")
-		runCorner.CornerRadius = UDim.new(0, 6)
-		runCorner.Parent = runBtn
-		
-		runBtn.MouseButton1Click:Connect(function()
-			if cmd.args and cmd.args ~= "" then
-				inputBox.Text = cmd.name .. " "
-				inputBox:CaptureFocus()
-			else
-				runCmd(cmd.name)
-			end
-		end)
-	end
-	
-	scroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
-	
-	-- Settings Panel
-	local settingsPanel = Instance.new("Frame")
-	settingsPanel.Name = "SettingsPanel"
-	settingsPanel.Size = UDim2.new(1, 0, 0, 0)
-	settingsPanel.Position = UDim2.new(0, 0, 0, 50)
-	settingsPanel.BackgroundColor3 = C.surface
-	settingsPanel.BackgroundTransparency = 0.2
-	settingsPanel.BorderSizePixel = 0
-	settingsPanel.ClipsDescendants = true
-	settingsPanel.Visible = false
-	settingsPanel.Parent = main
-	
-	-- Interactions
-	local expanded = false
-	local showingSettings = false
-	
-	local function togglePanel()
-		expanded = not expanded
-		if expanded then
-			TweenService:Create(main, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {Size = UDim2.new(0, 360, 0, 300)}):Play()
-			TweenService:Create(cmdPanel, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 250)}):Play()
-			collapse.Text = "▲"
-			if showingSettings then
-				settingsPanel.Visible = false
-				showingSettings = false
-			end
-		else
-			TweenService:Create(main, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {Size = UDim2.new(0, 360, 0, 50)}):Play()
-			TweenService:Create(cmdPanel, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 0)}):Play()
-			collapse.Text = "▼"
-		end
-	end
-	
-	local function toggleSettings()
-		showingSettings = not showingSettings
-		if showingSettings then
-			if not expanded then togglePanel() end
-			cmdPanel.Visible = false
-			settingsPanel.Visible = true
-			TweenService:Create(settingsPanel, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 250)}):Play()
-		else
-			settingsPanel.Visible = false
-			cmdPanel.Visible = true
-		end
-	end
-	
-	cmds.MouseButton1Click:Connect(togglePanel)
-	collapse.MouseButton1Click:Connect(togglePanel)
-	settings.MouseButton1Click:Connect(toggleSettings)
-	
-	-- Input handling
-	inputBox.FocusLost:Connect(function(entered)
-		if entered and inputBox.Text ~= "" then
-			local text = inputBox.Text
-			-- Remove prefix if typed
-			if text:sub(1, #state.prefix) == state.prefix then
-				text = text:sub(#state.prefix + 1)
-			end
-			runCmd(text)
-			inputBox.Text = ""
-		end
-	end)
-	
-	-- Touch/Mobile support
-	if UserInputService.TouchEnabled then
-		main.Position = UDim2.new(1, -370, 0, 100) -- Lower on mobile
-		title.TextSize = 14
-		statsFrame.Visible = false
-	end
-	
-	-- Stats updater
-	task.spawn(function()
-		while task.wait(0.5) do
-			local fps = math.random(55, 60) -- Replace with actual FPS calc
-			local ping = 0
-			pcall(function()
-				ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
-			end)
-			
-			fpsLabel.Text = fps .. " FPS"
-			fpsLabel.TextColor3 = fps > 50 and C.success or fps > 30 and C.warning or C.error
-			
-			pingLabel.Text = ping .. "ms"
-			pingLabel.TextColor3 = ping < 100 and C.success or ping < 200 and C.warning or C.error
-		end
-	end)
-	
-	return gui
-end
-
--- Chat Hook (Fixed)
-local function hookChat()
-	-- Wait for chat to load
-	local chatGui = lp:WaitForChild("PlayerGui"):WaitForChild("Chat", 10)
-	if not chatGui then return end
-	
-	local function processMessage(text)
-		if text:sub(1, #state.prefix) == state.prefix then
-			local cmd = text:sub(#state.prefix + 1)
-			if cmd ~= "" then
-				runCmd(cmd)
-				return true -- Block message
-			end
-		end
-		return false
-	end
-	
-	-- Hook into chat bar
-	local function setupChatBar(bar)
-		local conn
-		conn = bar.FocusLost:Connect(function(enterPressed)
-			if enterPressed then
-				local text = bar.Text
-				if processMessage(text) then
-					bar.Text = "" -- Clear if it was a command
-				end
-			end
-		end)
-	end
-	
-	-- Find existing chat bars
-	for _, obj in ipairs(chatGui:GetDescendants()) do
-		if obj:IsA("TextBox") and obj.Name:lower():find("bar") then
-			setupChatBar(obj)
-		end
-	end
-	
-	-- Hook future ones
-	chatGui.DescendantAdded:Connect(function(desc)
-		if desc:IsA("TextBox") and desc.Name:lower():find("bar") then
-			task.wait(0.1)
-			setupChatBar(desc)
-		end
-	end)
-end
-
--- Tracers Render Loop
+-- Tracers Render
 RunService.RenderStepped:Connect(function()
-	if not state.tracers then return end
-	local viewport = cam.ViewportSize
-	for _, trace in ipairs(state.traceObjs) do
-		if trace.target and trace.target.Parent then
-			local pos, visible = cam:WorldToViewportPoint(trace.target.Position)
-			trace.line.From = Vector2.new(viewport.X/2, viewport.Y)
-			trace.line.To = Vector2.new(pos.X, pos.Y)
-			trace.line.Visible = visible and pos.Z > 0
-		else
-			trace.line.Visible = false
-		end
-	end
+    if not state.tracers then return end
+    local cam = workspace.CurrentCamera
+    local viewport = cam.ViewportSize
+    
+    for _, trace in ipairs(state.traceObjs) do
+        if trace.target and trace.target.Parent then
+            local pos, vis = cam:WorldToViewportPoint(trace.target.Position)
+            trace.line.From = Vector2.new(viewport.X/2, viewport.Y)
+            trace.line.To = Vector2.new(pos.X, pos.Y)
+            trace.line.Visible = vis and pos.Z > 0
+        else
+            trace.line.Visible = false
+        end
+    end
 end)
 
--- Initialization
-task.spawn(createUI)
-task.spawn(hookChat)
+-- Mobile Support
+if UserInputService.TouchEnabled then
+    main.Position = UDim2.new(1, -350, 0, 100)
+    main.Size = UDim2.new(0, 300, 0, 50)
+    cmdBtn.Size = UDim2.new(0, 40, 0, 40)
+    settingsBtn.Size = UDim2.new(0, 40, 0, 40)
+end
+
+notify("Lavender", "GUI Loaded! Prefix: " .. state.prefix, 4, "success")
 
 -- Character respawn handler
 lp.CharacterAdded:Connect(function()
-	task.wait(1)
-	if state.fly then runCmd("fly") runCmd("fly") end -- Toggle twice to restart
-	if state.noclip then runCmd("noclip") runCmd("noclip") end
-	if state.god then
-		local h = lp.Character:FindFirstChild("Humanoid")
-		if h then h.MaxHealth = math.huge; h.Health = math.huge end
-	end
+    task.wait(1)
+    if state.fly then state.fly = false; runCmd("fly") end
+    if state.noclip then state.noclip = false; runCmd("noclip") end
 end)
-
-notify("Lavender Admin", "Loaded! Prefix: " .. state.prefix, 5, "success")
