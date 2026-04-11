@@ -1,36 +1,30 @@
-speed: Sets the WalkSpeed of a player
-jump: Sets the JumpPower of a player
-fly: Toggles fly mode on yourself
-noclip: Toggles noclip on yourself
-invisible: Makes yourself invisible
-freeze: Freezes a player in place
-unfreeze: Unfreezes a player
-kill: Kills a target player
-respawn: Respawns a target player
-tp: Teleports you to a player
-bring: Brings a player to you
-fling: Flings a player with velocity
-sit: Forces a player to sit
-god: Enables godmode on yourself
-esp: Toggles player ESP
-chams: Highlights all players
-nametags: Shows nametags through walls
-tracers: Draws lines to all players
-gravity: Sets workspace gravity
-timeset: Sets lighting clock time
-fog: Sets fog density
-ambient: Sets lighting ambient
-brightness: Sets lighting brightness
-players: Lists all players with info
-serverid: Shows current server JobId
-ping: Shows your current ping
-uptime: Shows server uptime
-serversize: Shows player count vs max
-pm: Sends a fake whisper to a player
-spam: Spams a chat message
-hint: Shows a hint to all clients
-reset: Respawns yourself
-goto: Teleports to coordinates
-pos: Prints your current position
-rejoin: Rejoins the current game
-spectate: Spectates a player
+local BASE = "https://raw.githubusercontent.com/NoSkillStudios/Zen2/main"
+getgenv()._lav_key = "LavenderAdmin_Secure_2025"
+
+local sg = game:GetService("StarterGui")
+
+local function fetch(path)
+	local ok, res = pcall(function() return game:HttpGet(BASE .. "/" .. path) end)
+	if not ok or not res or #res < 10 or res:find("^<!") or res:find("^404") then return nil end
+	return res
+end
+
+local function notify(t, b)
+	pcall(function() sg:SetCore("SendNotification", {Title=t, Text=b, Duration=6}) end)
+end
+
+local cmdSrc = fetch("Commands")
+if not cmdSrc then notify("Lavender", "Failed to fetch Commands.") return end
+
+local cmdFn, cmdErr = loadstring(cmdSrc)
+if not cmdFn then notify("Lavender — Parse Error", tostring(cmdErr)) return end
+local ok1, e1 = pcall(cmdFn)
+if not ok1 then notify("Lavender — Commands Error", tostring(e1)) return end
+
+local src = fetch("Script")
+if not src then notify("Lavender", "Failed to fetch Script.") return end
+
+local fn, err = loadstring(src)
+if not fn then notify("Lavender — Parse Error", tostring(err)) return end
+local ok2, e2 = pcall(fn)
+if not ok2 then notify("Lavender — Runtime Error", tostring(e2)) return end
