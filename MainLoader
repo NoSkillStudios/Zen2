@@ -1,5 +1,4 @@
 local BASE = "https://raw.githubusercontent.com/NoSkillStudios/Zen2/main"
-
 getgenv()._lav_key = "LavenderAdmin_Secure_2025"
 
 local sg = game:GetService("StarterGui")
@@ -11,20 +10,21 @@ local function fetch(path)
 end
 
 local function notify(t, b)
-	pcall(function()
-		sg:SetCore("SendNotification", {Title=t, Text=b, Duration=8})
-	end)
+	pcall(function() sg:SetCore("SendNotification", {Title=t, Text=b, Duration=6}) end)
 end
 
-local raw = fetch("Commands")
-if not raw then notify("Lavender", "Failed to fetch command definitions.") return end
-getgenv()._lav_commands_raw = raw
+local cmdSrc = fetch("Commands")
+if not cmdSrc then notify("Lavender", "Failed to fetch Commands.") return end
+
+local cmdFn, cmdErr = loadstring(cmdSrc)
+if not cmdFn then notify("Lavender — Parse Error", tostring(cmdErr)) return end
+local ok1, e1 = pcall(cmdFn)
+if not ok1 then notify("Lavender — Commands Error", tostring(e1)) return end
 
 local src = fetch("Script")
-if not src then notify("Lavender", "Failed to fetch main script.") return end
+if not src then notify("Lavender", "Failed to fetch Script.") return end
 
 local fn, err = loadstring(src)
 if not fn then notify("Lavender — Parse Error", tostring(err)) return end
-
-local ok, err2 = pcall(fn)
-if not ok then notify("Lavender — Runtime Error", tostring(err2)) return end
+local ok2, e2 = pcall(fn)
+if not ok2 then notify("Lavender — Runtime Error", tostring(e2)) return end
