@@ -1,429 +1,745 @@
 if getgenv()._lav_key ~= "LavenderAdmin_Secure_2025" then return end
-if getgenv()._lav_gui_loaded then 
-    -- Destroy old GUI
-    local old = game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("LavenderAdmin")
-    if old then old:Destroy() end
-end
-getgenv()._lav_gui_loaded = true
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
+local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local Stats = game:GetService("Stats")
 local lp = Players.LocalPlayer
 local pg = lp:WaitForChild("PlayerGui")
 
--- Wait for commands to load
 local retries = 0
-while not getgenv()._lav_cmds and retries < 50 do
-    task.wait(0.1)
-    retries += 1
+while not getgenv()._lav_cmds and retries < 80 do
+	task.wait(0.1); retries += 1
 end
-if not getgenv()._lav_cmds then
-    warn("Commands not found!")
-    return
-end
+if not getgenv()._lav_cmds then return end
 
 local CMDS = getgenv()._lav_cmds
 local state = getgenv()._lav_state
 local runCmd = getgenv()._lav_run
 
--- Colors
+do
+	local old = pg:FindFirstChild("LavenderAdmin")
+	if old then old:Destroy() end
+end
+getgenv()._lav_gui_loaded = true
+
 local C = {
-    bg = Color3.fromRGB(12, 10, 22),
-    panel = Color3.fromRGB(18, 15, 32),
-    surface = Color3.fromRGB(25, 21, 42),
-    accent = Color3.fromRGB(167, 139, 250),
-    accentHi = Color3.fromRGB(216, 180, 254),
-    accentDk = Color3.fromRGB(109, 73, 212),
-    text = Color3.fromRGB(237, 233, 254),
-    textDim = Color3.fromRGB(168, 162, 200),
+	bg      = Color3.fromRGB(8, 6, 18),
+	panel   = Color3.fromRGB(15, 12, 28),
+	surface = Color3.fromRGB(22, 18, 38),
+	lift    = Color3.fromRGB(30, 25, 50),
+	accent  = Color3.fromRGB(167, 139, 250),
+	accentHi= Color3.fromRGB(216, 180, 254),
+	accentDk= Color3.fromRGB(109, 73, 212),
+	text    = Color3.fromRGB(237, 233, 254),
+	dim     = Color3.fromRGB(150, 142, 185),
+	green   = Color3.fromRGB(134, 239, 172),
+	yellow  = Color3.fromRGB(250, 204, 21),
+	red     = Color3.fromRGB(248, 113, 113),
 }
 
--- Clean old
-local old = pg:FindFirstChild("LavenderAdmin")
-if old then old:Destroy() end
+local TI = TweenInfo.new
+local function tween(obj, t, props) TweenService:Create(obj, t, props):Play() end
+local function newInst(cls, parent, props)
+	local i = Instance.new(cls)
+	if props then for k, v in pairs(props) do i[k] = v end end
+	if parent then i.Parent = parent end
+	return i
+end
+local function corner(r, parent)
+	return newInst("UICorner", parent, {CornerRadius = UDim.new(0, r)})
+end
+local function stroke(c, th, tr, parent)
+	return newInst("UIStroke", parent, {Color = c, Thickness = th, Transparency = tr})
+end
 
--- ScreenGui
-local gui = Instance.new("ScreenGui")
-gui.Name = "LavenderAdmin"
-gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.DisplayOrder = 999
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-gui.Parent = pg
+local gui = newInst("ScreenGui", pg, {
+	Name = "LavenderAdmin",
+	ResetOnSpawn = false,
+	IgnoreGuiInset = true,
+	DisplayOrder = 999,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+})
 
--- Notification Container
-local notifContainer = Instance.new("Frame")
-notifContainer.Name = "Notifs"
-notifContainer.Size = UDim2.new(0, 300, 1, -100)
-notifContainer.Position = UDim2.new(1, -20, 0, 80)
-notifContainer.AnchorPoint = Vector2.new(1, 0)
-notifContainer.BackgroundTransparency = 1
-notifContainer.Parent = gui
+local notifFrame = newInst("Frame", gui, {
+	Size = UDim2.new(0, 300, 1, -60),
+	Position = UDim2.new(1, -10, 0, 60),
+	AnchorPoint = Vector2.new(1, 0),
+	BackgroundTransparency = 1,
+})
+local notifLayout = newInst("UIListLayout", notifFrame, {
+	Padding = UDim.new(0, 6),
+	HorizontalAlignment = Enum.HorizontalAlignment.Right,
+	VerticalAlignment = Enum.VerticalAlignment.Top,
+	SortOrder = Enum.SortOrder.LayoutOrder,
+})
 
-local notifLayout = Instance.new("UIListLayout")
-notifLayout.Padding = UDim.new(0, 8)
-notifLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-notifLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-notifLayout.Parent = notifContainer
-
--- Notification Function (FIXED - proper cleanup)
 local function notify(title, body, duration, ntype)
-    ntype = ntype or "info"
-    local color = ntype == "success" and C.accent or ntype == "error" and Color3.fromRGB(248, 113, 113) or ntype == "warning" and Color3.fromRGB(250, 204, 21) or C.accentHi
-    
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 280, 0, 0)
-    frame.BackgroundColor3 = C.panel
-    frame.BorderSizePixel = 0
-    frame.ClipsDescendants = true
-    frame.Parent = notifContainer
-    
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 10)
-    corner.Parent = frame
-    
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = color
-    stroke.Thickness = 1.5
-    stroke.Transparency = 0.4
-    stroke.Parent = frame
-    
-    -- Content
-    local icon = Instance.new("Frame")
-    icon.Size = UDim2.new(0, 32, 0, 32)
-    icon.Position = UDim2.new(0, 10, 0, 10)
-    icon.BackgroundColor3 = color
-    icon.BackgroundTransparency = 0.8
-    icon.BorderSizePixel = 0
-    icon.Parent = frame
-    
-    local iconCorner = Instance.new("UICorner")
-    iconCorner.CornerRadius = UDim.new(0, 8)
-    iconCorner.Parent = icon
-    
-    local iconLbl = Instance.new("TextLabel")
-    iconLbl.Size = UDim2.new(1, 0, 1, 0)
-    iconLbl.BackgroundTransparency = 1
-    iconLbl.Text = ntype == "success" and "✓" or ntype == "error" and "✕" or "!"
-    iconLbl.TextColor3 = color
-    iconLbl.Font = Enum.Font.GothamBold
-    iconLbl.TextSize = 16
-    iconLbl.Parent = icon
-    
-    local titleLbl = Instance.new("TextLabel")
-    titleLbl.Size = UDim2.new(1, -60, 0, 20)
-    titleLbl.Position = UDim2.new(0, 50, 0, 10)
-    titleLbl.BackgroundTransparency = 1
-    titleLbl.Text = title
-    titleLbl.TextColor3 = C.text
-    titleLbl.Font = Enum.Font.GothamBold
-    titleLbl.TextSize = 13
-    titleLbl.TextXAlignment = Enum.TextXAlignment.Left
-    titleLbl.Parent = frame
-    
-    local bodyLbl = Instance.new("TextLabel")
-    bodyLbl.Size = UDim2.new(1, -60, 0, 20)
-    bodyLbl.Position = UDim2.new(0, 50, 0, 28)
-    bodyLbl.BackgroundTransparency = 1
-    bodyLbl.Text = body
-    bodyLbl.TextColor3 = C.textDim
-    bodyLbl.Font = Enum.Font.Gotham
-    bodyLbl.TextSize = 11
-    bodyLbl.TextXAlignment = Enum.TextXAlignment.Left
-    bodyLbl.Parent = frame
-    
-    -- Animate in
-    TweenService:Create(frame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {Size = UDim2.new(0, 280, 0, 60)}):Play()
-    
-    -- Cleanup
-    task.delay(duration or 4, function()
-        local out = TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
-            Size = UDim2.new(0, 280, 0, 0),
-            BackgroundTransparency = 1
-        })
-        out:Play()
-        
-        for _, v in ipairs(frame:GetDescendants()) do
-            if v:IsA("TextLabel") then
-                TweenService:Create(v, TweenInfo.new(0.2), {TextTransparency = 1}):Play()
-            elseif v:IsA("Frame") then
-                TweenService:Create(v, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
-            elseif v:IsA("UIStroke") then
-                TweenService:Create(v, TweenInfo.new(0.2), {Transparency = 1}):Play()
-            end
-        end
-        
-        task.wait(0.35)
-        frame:Destroy()
-    end)
+	ntype = ntype or "info"
+	local col = ntype == "success" and C.green
+		or ntype == "error" and C.red
+		or ntype == "warning" and C.yellow
+		or C.accentHi
+
+	local fr = newInst("Frame", notifFrame, {
+		Size = UDim2.new(0, 280, 0, 0),
+		BackgroundColor3 = C.panel,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+	})
+	corner(10, fr)
+	stroke(col, 1.2, 0.45, fr)
+
+	local bar = newInst("Frame", fr, {
+		Size = UDim2.new(0, 3, 1, -16),
+		Position = UDim2.new(0, 0, 0, 8),
+		BackgroundColor3 = col,
+		BorderSizePixel = 0,
+	})
+	corner(3, bar)
+
+	local ic = newInst("Frame", fr, {
+		Size = UDim2.new(0, 30, 0, 30),
+		Position = UDim2.new(0, 10, 0, 0),
+		AnchorPoint = Vector2.new(0, 0.5),
+		BackgroundColor3 = col,
+		BackgroundTransparency = 0.82,
+		BorderSizePixel = 0,
+	})
+	corner(8, ic)
+	newInst("TextLabel", ic, {
+		Size = UDim2.fromScale(1,1),
+		BackgroundTransparency = 1,
+		Text = ntype == "success" and "✓" or ntype == "error" and "✕" or ntype == "warning" and "!" or "i",
+		TextColor3 = col,
+		Font = Enum.Font.GothamBold,
+		TextSize = 14,
+	})
+
+	newInst("TextLabel", fr, {
+		Size = UDim2.new(1, -56, 0, 18),
+		Position = UDim2.new(0, 48, 0, 8),
+		BackgroundTransparency = 1,
+		Text = title,
+		TextColor3 = C.text,
+		Font = Enum.Font.GothamBold,
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+	})
+	newInst("TextLabel", fr, {
+		Size = UDim2.new(1, -56, 0, 16),
+		Position = UDim2.new(0, 48, 0, 26),
+		BackgroundTransparency = 1,
+		Text = body,
+		TextColor3 = C.dim,
+		Font = Enum.Font.Gotham,
+		TextSize = 10,
+		TextXAlignment = Enum.TextXAlignment.Left,
+	})
+
+	-- progress bar
+	local prog = newInst("Frame", fr, {
+		Size = UDim2.new(1, 0, 0, 2),
+		Position = UDim2.new(0, 0, 1, -2),
+		BackgroundColor3 = col,
+		BackgroundTransparency = 0.5,
+		BorderSizePixel = 0,
+	})
+
+	tween(fr, TI(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 280, 0, 58)})
+
+	task.delay(0.1, function()
+		tween(prog, TI(duration or 4, Enum.EasingStyle.Linear), {Size = UDim2.new(0, 0, 0, 2)})
+	end)
+
+	task.delay((duration or 4) + 0.1, function()
+		tween(fr, TI(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+			Size = UDim2.new(0, 280, 0, 0),
+			BackgroundTransparency = 1,
+		})
+		for _, v in ipairs(fr:GetDescendants()) do
+			if v:IsA("TextLabel") then tween(v, TI(0.2), {TextTransparency = 1}) end
+		end
+		task.delay(0.32, function() fr:Destroy() end)
+	end)
 end
 getgenv()._lav_notify = notify
 
--- Main UI (Simplified, less glitchy)
-local main = Instance.new("Frame")
-main.Name = "Main"
-main.Size = UDim2.new(0, 340, 0, 50)
-main.Position = UDim2.new(1, -350, 0, 20)
-main.BackgroundColor3 = C.panel
-main.BackgroundTransparency = 0.1
-main.BorderSizePixel = 0
-main.Parent = gui
-
-local mainCorner = Instance.new("UICorner")
-mainCorner.CornerRadius = UDim.new(0, 12)
-mainCorner.Parent = main
-
-local mainStroke = Instance.new("UIStroke")
-mainStroke.Color = C.accent
-mainStroke.Thickness = 1
-mainStroke.Transparency = 0.5
-mainStroke.Parent = main
-
--- Top bar content
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(0, 100, 1, 0)
-title.Position = UDim2.new(0, 15, 0, 0)
-title.BackgroundTransparency = 1
-title.Text = "LAVENDER"
-title.TextColor3 = C.accentHi
-title.Font = Enum.Font.GothamBold
-title.TextSize = 16
-title.TextXAlignment = Enum.TextXAlignment.Left
-title.Parent = main
-
--- Stats
-local statsFrame = Instance.new("Frame")
-statsFrame.Size = UDim2.new(0, 70, 0, 28)
-statsFrame.Position = UDim2.new(0, 120, 0.5, -14)
-statsFrame.BackgroundColor3 = C.surface
-statsFrame.BackgroundTransparency = 0.3
-statsFrame.BorderSizePixel = 0
-statsFrame.Parent = main
-
-local statsCorner = Instance.new("UICorner")
-statsCorner.CornerRadius = UDim.new(0, 6)
-statsCorner.Parent = statsFrame
-
-local fpsLbl = Instance.new("TextLabel")
-fpsLbl.Size = UDim2.new(1, 0, 0.5, 0)
-fpsLbl.BackgroundTransparency = 1
-fpsLbl.Text = "60 FPS"
-fpsLbl.TextColor3 = Color3.fromRGB(134, 239, 172)
-fpsLbl.Font = Enum.Font.GothamBold
-fpsLbl.TextSize = 9
-fpsLbl.Parent = statsFrame
-
-local pingLbl = Instance.new("TextLabel")
-pingLbl.Size = UDim2.new(1, 0, 0.5, 0)
-pingLbl.Position = UDim2.new(0, 0, 0.5, 0)
-pingLbl.BackgroundTransparency = 1
-pingLbl.Text = "20ms"
-pingLbl.TextColor3 = Color3.fromRGB(134, 239, 172)
-pingLbl.Font = Enum.Font.GothamBold
-pingLbl.TextSize = 9
-pingLbl.Parent = statsFrame
-
--- Buttons
-local cmdBtn = Instance.new("TextButton")
-cmdBtn.Size = UDim2.new(0, 32, 0, 32)
-cmdBtn.Position = UDim2.new(1, -85, 0.5, -16)
-cmdBtn.BackgroundColor3 = C.accentDk
-cmdBtn.BackgroundTransparency = 0.3
-cmdBtn.Text = ">_"
-cmdBtn.TextColor3 = C.accentHi
-cmdBtn.Font = Enum.Font.GothamBold
-cmdBtn.TextSize = 14
-cmdBtn.AutoButtonColor = false
-cmdBtn.Parent = main
-
-local cmdBtnCorner = Instance.new("UICorner")
-cmdBtnCorner.CornerRadius = UDim.new(0, 8)
-cmdBtnCorner.Parent = cmdBtn
-
-local settingsBtn = Instance.new("TextButton")
-settingsBtn.Size = UDim2.new(0, 32, 0, 32)
-settingsBtn.Position = UDim2.new(1, -48, 0.5, -16)
-settingsBtn.BackgroundColor3 = C.accentDk
-settingsBtn.BackgroundTransparency = 0.3
-settingsBtn.Text = "⚙"
-settingsBtn.TextColor3 = C.accentHi
-settingsBtn.Font = Enum.Font.GothamBold
-settingsBtn.TextSize = 16
-settingsBtn.AutoButtonColor = false
-settingsBtn.Parent = main
-
-local settingsBtnCorner = Instance.new("UICorner")
-settingsBtnCorner.CornerRadius = UDim.new(0, 8)
-settingsBtnCorner.Parent = settingsBtn
-
--- Expandable Panel
-local panel = Instance.new("Frame")
-panel.Name = "Panel"
-panel.Size = UDim2.new(1, 0, 0, 0)
-panel.Position = UDim2.new(0, 0, 0, 50)
-panel.BackgroundColor3 = C.surface
-panel.BackgroundTransparency = 0.2
-panel.BorderSizePixel = 0
-panel.ClipsDescendants = true
-panel.Parent = main
-
-local panelCorner = Instance.new("UICorner")
-panelCorner.CornerRadius = UDim.new(0, 0)
-panelCorner.Parent = panel
-
--- Input
-local input = Instance.new("TextBox")
-input.Size = UDim2.new(1, -20, 0, 36)
-input.Position = UDim2.new(0, 10, 0, 10)
-input.BackgroundColor3 = C.bg
-input.BackgroundTransparency = 0.5
-input.TextColor3 = C.text
-input.PlaceholderColor3 = Color3.fromRGB(100, 90, 130)
-input.Font = Enum.Font.GothamSemibold
-input.TextSize = 12
-input.PlaceholderText = state.prefix .. "command"
-input.Text = ""
-input.ClearTextOnFocus = false
-input.Parent = panel
-
-local inputCorner = Instance.new("UICorner")
-inputCorner.CornerRadius = UDim.new(0, 8)
-inputCorner.Parent = input
-
-local inputStroke = Instance.new("UIStroke")
-inputStroke.Color = C.accentDk
-inputStroke.Thickness = 1
-inputStroke.Transparency = 0.5
-inputStroke.Parent = input
-
--- Command List (simplified - just input for now to prevent lag)
-local hint = Instance.new("TextLabel")
-hint.Size = UDim2.new(1, -20, 0, 20)
-hint.Position = UDim2.new(0, 10, 0, 50)
-hint.BackgroundTransparency = 1
-hint.Text = "Type command and press Enter"
-hint.TextColor3 = C.textDim
-hint.Font = Enum.Font.Gotham
-hint.TextSize = 10
-hint.Parent = panel
-
--- Toggle Logic
+-- Main window
+local WIN_W, WIN_H_COLLAPSED, WIN_H_EXPANDED = 360, 52, 460
 local expanded = false
-local function toggle()
-    expanded = not expanded
-    if expanded then
-        TweenService:Create(main, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {Size = UDim2.new(0, 340, 0, 150)}):Play()
-        TweenService:Create(panel, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 100)}):Play()
-    else
-        TweenService:Create(main, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {Size = UDim2.new(0, 340, 0, 50)}):Play()
-        TweenService:Create(panel, TweenInfo.new(0.3), {Size = UDim2.new(1, 0, 0, 0)}):Play()
-        input:ReleaseFocus()
-    end
+local activeTab = "commands"
+
+local main = newInst("Frame", gui, {
+	Name = "Main",
+	Size = UDim2.new(0, WIN_W, 0, WIN_H_COLLAPSED),
+	Position = UDim2.new(1, -(WIN_W + 14), 0, 14),
+	BackgroundColor3 = C.panel,
+	BorderSizePixel = 0,
+	ClipsDescendants = true,
+})
+corner(14, main)
+stroke(C.accent, 1, 0.6, main)
+
+-- Gradient overlay on top
+local grad = newInst("Frame", main, {
+	Size = UDim2.new(1, 0, 0, 52),
+	BackgroundColor3 = C.accentDk,
+	BackgroundTransparency = 0.92,
+	BorderSizePixel = 0,
+})
+newInst("UIGradient", grad, {
+	Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, C.accentDk),
+		ColorSequenceKeypoint.new(1, C.bg),
+	},
+	Rotation = 90,
+})
+
+-- Header
+local header = newInst("Frame", main, {
+	Size = UDim2.new(1, 0, 0, 52),
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+})
+
+newInst("TextLabel", header, {
+	Size = UDim2.new(0, 120, 1, 0),
+	Position = UDim2.new(0, 14, 0, 0),
+	BackgroundTransparency = 1,
+	Text = "✦ LAVENDER",
+	TextColor3 = C.accentHi,
+	Font = Enum.Font.GothamBold,
+	TextSize = 15,
+	TextXAlignment = Enum.TextXAlignment.Left,
+})
+
+local statsBox = newInst("Frame", header, {
+	Size = UDim2.new(0, 90, 0, 30),
+	Position = UDim2.new(0, 138, 0.5, -15),
+	BackgroundColor3 = C.lift,
+	BackgroundTransparency = 0.3,
+	BorderSizePixel = 0,
+})
+corner(8, statsBox)
+
+local fpsLbl = newInst("TextLabel", statsBox, {
+	Size = UDim2.new(1, 0, 0.5, 0),
+	BackgroundTransparency = 1,
+	Text = "-- FPS",
+	TextColor3 = C.green,
+	Font = Enum.Font.GothamBold,
+	TextSize = 9,
+})
+local pingLbl = newInst("TextLabel", statsBox, {
+	Size = UDim2.new(1, 0, 0.5, 0),
+	Position = UDim2.new(0, 0, 0.5, 0),
+	BackgroundTransparency = 1,
+	Text = "-- ms",
+	TextColor3 = C.green,
+	Font = Enum.Font.GothamBold,
+	TextSize = 9,
+})
+
+local function makeHeaderBtn(icon, xRight)
+	local btn = newInst("TextButton", header, {
+		Size = UDim2.new(0, 34, 0, 34),
+		Position = UDim2.new(1, xRight, 0.5, -17),
+		BackgroundColor3 = C.lift,
+		BackgroundTransparency = 0.3,
+		Text = icon,
+		TextColor3 = C.accentHi,
+		Font = Enum.Font.GothamBold,
+		TextSize = 15,
+		AutoButtonColor = false,
+		BorderSizePixel = 0,
+	})
+	corner(9, btn)
+	btn.MouseEnter:Connect(function() tween(btn, TI(0.15), {BackgroundTransparency = 0}) end)
+	btn.MouseLeave:Connect(function() tween(btn, TI(0.15), {BackgroundTransparency = 0.3}) end)
+	return btn
 end
 
-cmdBtn.MouseButton1Click:Connect(toggle)
+local toggleBtn = makeHeaderBtn(">_", -82)
+local closeBtn  = makeHeaderBtn("✕", -42)
 
--- Command Execution
-input.FocusLost:Connect(function(enter)
-    if enter and input.Text ~= "" then
-        local text = input.Text
-        -- Auto-remove prefix if typed
-        if text:sub(1, #state.prefix) == state.prefix then
-            text = text:sub(#state.prefix + 1)
-        end
-        runCmd(text)
-        input.Text = ""
-    end
-end)
+-- Body (expandable)
+local body = newInst("Frame", main, {
+	Size = UDim2.new(1, 0, 1, -52),
+	Position = UDim2.new(0, 0, 0, 52),
+	BackgroundColor3 = C.bg,
+	BackgroundTransparency = 0.05,
+	BorderSizePixel = 0,
+	ClipsDescendants = true,
+})
 
--- CHAT HOOK (FIXED - Using Player.Chatted)
-local function onChatted(msg)
-    if msg:sub(1, #state.prefix) == state.prefix then
-        local cmd = msg:sub(#state.prefix + 1)
-        if cmd ~= "" then
-            runCmd(cmd)
-        end
-    end
+-- Tab bar
+local tabBar = newInst("Frame", body, {
+	Size = UDim2.new(1, 0, 0, 38),
+	BackgroundColor3 = C.surface,
+	BackgroundTransparency = 0.3,
+	BorderSizePixel = 0,
+})
+newInst("UIListLayout", tabBar, {
+	FillDirection = Enum.FillDirection.Horizontal,
+	HorizontalAlignment = Enum.HorizontalAlignment.Left,
+	VerticalAlignment = Enum.VerticalAlignment.Center,
+	Padding = UDim.new(0, 4),
+})
+newInst("UIPadding", tabBar, {PaddingLeft = UDim.new(0, 8)})
+
+local tabs = {}
+local tabFrames = {}
+
+local function makeTab(label, id)
+	local btn = newInst("TextButton", tabBar, {
+		Size = UDim2.new(0, 88, 0, 28),
+		BackgroundColor3 = activeTab == id and C.accentDk or C.lift,
+		BackgroundTransparency = activeTab == id and 0.3 or 0.6,
+		Text = label,
+		TextColor3 = activeTab == id and C.accentHi or C.dim,
+		Font = Enum.Font.GothamSemibold,
+		TextSize = 11,
+		AutoButtonColor = false,
+		BorderSizePixel = 0,
+	})
+	corner(7, btn)
+	tabs[id] = btn
+	return btn
 end
 
-lp.Chatted:Connect(onChatted)
+local tabCmds    = makeTab("Commands", "commands")
+local tabVisuals = makeTab("Visuals", "visuals")
+local tabPlayer  = makeTab("Player", "player")
 
--- Also hook legacy chat if present
-pcall(function()
-    local chatEvents = game:GetService("ReplicatedStorage"):WaitForChild("DefaultChatSystemChatEvents", 2)
-    if chatEvents then
-        local sayEvent = chatEvents:WaitForChild("SayMessageRequest")
-        local oldSay = sayEvent.FireServer
-        sayEvent.FireServer = function(self, msg, channel)
-            if msg:sub(1, #state.prefix) == state.prefix then
-                local cmd = msg:sub(#state.prefix + 1)
-                if cmd ~= "" then
-                    runCmd(cmd)
-                    return -- Don't send to chat
-                end
-            end
-            return oldSay(self, msg, channel)
-        end
-    end
+-- Tab content area
+local contentArea = newInst("Frame", body, {
+	Size = UDim2.new(1, 0, 1, -38),
+	Position = UDim2.new(0, 0, 0, 38),
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+	ClipsDescendants = true,
+})
+
+local function makeTabFrame(id)
+	local f = newInst("Frame", contentArea, {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Visible = activeTab == id,
+		ClipsDescendants = true,
+	})
+	tabFrames[id] = f
+	return f
+end
+
+local function switchTab(id)
+	if activeTab == id then return end
+	for tid, btn in pairs(tabs) do
+		local on = tid == id
+		tween(btn, TI(0.2), {
+			BackgroundTransparency = on and 0.3 or 0.6,
+			BackgroundColor3 = on and C.accentDk or C.lift,
+			TextColor3 = on and C.accentHi or C.dim,
+		})
+	end
+	if tabFrames[activeTab] then tabFrames[activeTab].Visible = false end
+	activeTab = id
+	if tabFrames[id] then tabFrames[id].Visible = true end
+end
+
+tabCmds.MouseButton1Click:Connect(function() switchTab("commands") end)
+tabVisuals.MouseButton1Click:Connect(function() switchTab("visuals") end)
+tabPlayer.MouseButton1Click:Connect(function() switchTab("player") end)
+
+-- COMMANDS TAB
+local cmdFrame = makeTabFrame("commands")
+
+local inputBox = newInst("TextBox", cmdFrame, {
+	Size = UDim2.new(1, -16, 0, 34),
+	Position = UDim2.new(0, 8, 0, 8),
+	BackgroundColor3 = C.surface,
+	BackgroundTransparency = 0.2,
+	TextColor3 = C.text,
+	PlaceholderColor3 = C.dim,
+	Font = Enum.Font.GothamSemibold,
+	TextSize = 12,
+	PlaceholderText = "; command args...",
+	Text = "",
+	ClearTextOnFocus = false,
+	BorderSizePixel = 0,
+})
+corner(9, inputBox)
+stroke(C.accentDk, 1, 0.4, inputBox)
+newInst("UIPadding", inputBox, {PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10)})
+
+local cmdListOuter = newInst("ScrollingFrame", cmdFrame, {
+	Size = UDim2.new(1, -16, 1, -58),
+	Position = UDim2.new(0, 8, 0, 50),
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+	ScrollBarThickness = 3,
+	ScrollBarImageColor3 = C.accentDk,
+	CanvasSize = UDim2.new(0, 0, 0, 0),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+})
+
+newInst("UIListLayout", cmdListOuter, {
+	Padding = UDim.new(0, 3),
+	SortOrder = Enum.SortOrder.Name,
+})
+
+local seenCmds = {}
+for name, cmd in pairs(CMDS) do
+	if cmd.name == name and not seenCmds[cmd] then
+		seenCmds[cmd] = true
+		local row = newInst("TextButton", cmdListOuter, {
+			Name = cmd.name,
+			Size = UDim2.new(1, 0, 0, 32),
+			BackgroundColor3 = C.surface,
+			BackgroundTransparency = 0.5,
+			Text = "",
+			AutoButtonColor = false,
+			BorderSizePixel = 0,
+		})
+		corner(7, row)
+
+		newInst("TextLabel", row, {
+			Size = UDim2.new(0, 100, 1, 0),
+			Position = UDim2.new(0, 10, 0, 0),
+			BackgroundTransparency = 1,
+			Text = cmd.name,
+			TextColor3 = C.accentHi,
+			Font = Enum.Font.GothamBold,
+			TextSize = 11,
+			TextXAlignment = Enum.TextXAlignment.Left,
+		})
+		newInst("TextLabel", row, {
+			Size = UDim2.new(0, 100, 1, 0),
+			Position = UDim2.new(0, 106, 0, 0),
+			BackgroundTransparency = 1,
+			Text = cmd.argfmt or "",
+			TextColor3 = C.dim,
+			Font = Enum.Font.Gotham,
+			TextSize = 10,
+			TextXAlignment = Enum.TextXAlignment.Left,
+		})
+		newInst("TextLabel", row, {
+			Size = UDim2.new(0.45, 0, 1, 0),
+			Position = UDim2.new(0.55, 0, 0, 0),
+			BackgroundTransparency = 1,
+			Text = cmd.desc or "",
+			TextColor3 = Color3.fromRGB(120, 112, 155),
+			Font = Enum.Font.Gotham,
+			TextSize = 9,
+			TextXAlignment = Enum.TextXAlignment.Right,
+		})
+
+		row.MouseEnter:Connect(function() tween(row, TI(0.15), {BackgroundTransparency = 0.2}) end)
+		row.MouseLeave:Connect(function() tween(row, TI(0.15), {BackgroundTransparency = 0.5}) end)
+		row.MouseButton1Click:Connect(function()
+			inputBox.Text = state.prefix .. cmd.name .. " "
+			inputBox:CaptureFocus()
+		end)
+	end
+end
+
+getgenv()._lav_show_cmds = function()
+	if not expanded then toggleBtn:SimulateClick() end
+	switchTab("commands")
+end
+
+-- VISUALS TAB
+local visFrame = makeTabFrame("visuals")
+newInst("UIPadding", visFrame, {
+	PaddingTop = UDim.new(0, 8),
+	PaddingLeft = UDim.new(0, 8),
+	PaddingRight = UDim.new(0, 8),
+})
+
+local visLayout = newInst("UIListLayout", visFrame, {
+	Padding = UDim.new(0, 6),
+})
+
+local function makeToggleRow(label, desc, cmdName)
+	local row = newInst("Frame", visFrame, {
+		Size = UDim2.new(1, 0, 0, 44),
+		BackgroundColor3 = C.surface,
+		BackgroundTransparency = 0.4,
+		BorderSizePixel = 0,
+	})
+	corner(9, row)
+
+	newInst("TextLabel", row, {
+		Size = UDim2.new(0.6, 0, 0.5, 0),
+		Position = UDim2.new(0, 12, 0, 4),
+		BackgroundTransparency = 1,
+		Text = label,
+		TextColor3 = C.text,
+		Font = Enum.Font.GothamBold,
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+	})
+	newInst("TextLabel", row, {
+		Size = UDim2.new(0.6, 0, 0.5, 0),
+		Position = UDim2.new(0, 12, 0.5, 0),
+		BackgroundTransparency = 1,
+		Text = desc,
+		TextColor3 = C.dim,
+		Font = Enum.Font.Gotham,
+		TextSize = 9,
+		TextXAlignment = Enum.TextXAlignment.Left,
+	})
+
+	local toggle = newInst("TextButton", row, {
+		Size = UDim2.new(0, 46, 0, 24),
+		Position = UDim2.new(1, -54, 0.5, -12),
+		BackgroundColor3 = C.lift,
+		Text = "",
+		AutoButtonColor = false,
+		BorderSizePixel = 0,
+	})
+	corner(12, toggle)
+
+	local knob = newInst("Frame", toggle, {
+		Size = UDim2.new(0, 18, 0, 18),
+		Position = UDim2.new(0, 3, 0.5, -9),
+		BackgroundColor3 = C.dim,
+		BorderSizePixel = 0,
+	})
+	corner(9, knob)
+
+	local on = false
+	local function updateVis()
+		local col = on and C.accent or C.lift
+		tween(toggle, TI(0.2), {BackgroundColor3 = col})
+		tween(knob, TI(0.2), {
+			Position = on and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9),
+			BackgroundColor3 = on and C.accentHi or C.dim,
+		})
+	end
+
+	toggle.MouseButton1Click:Connect(function()
+		on = not on
+		updateVis()
+		runCmd(cmdName)
+	end)
+
+	-- Sync with state
+	RunService.Heartbeat:Connect(function()
+		local stateVal = state[cmdName] == true
+		if stateVal ~= on then
+			on = stateVal
+			updateVis()
+		end
+	end)
+
+	return row
+end
+
+makeToggleRow("ESP", "Player outlines & names", "esp")
+makeToggleRow("Chams", "Character highlights", "chams")
+makeToggleRow("Tracers", "Screen-space lines", "tracers")
+
+-- PLAYER TAB
+local plrFrame = makeTabFrame("player")
+newInst("UIPadding", plrFrame, {PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8)})
+local plrLayout = newInst("UIListLayout", plrFrame, {Padding = UDim.new(0, 6)})
+
+local function makeSliderRow(label, min, max, default, onchange)
+	local row = newInst("Frame", plrFrame, {
+		Size = UDim2.new(1, 0, 0, 54),
+		BackgroundColor3 = C.surface,
+		BackgroundTransparency = 0.4,
+		BorderSizePixel = 0,
+	})
+	corner(9, row)
+
+	local lbl = newInst("TextLabel", row, {
+		Size = UDim2.new(0.7, 0, 0, 20),
+		Position = UDim2.new(0, 12, 0, 6),
+		BackgroundTransparency = 1,
+		Text = label,
+		TextColor3 = C.text,
+		Font = Enum.Font.GothamBold,
+		TextSize = 11,
+		TextXAlignment = Enum.TextXAlignment.Left,
+	})
+
+	local valLbl = newInst("TextLabel", row, {
+		Size = UDim2.new(0.3, -12, 0, 20),
+		Position = UDim2.new(0.7, 0, 0, 6),
+		BackgroundTransparency = 1,
+		Text = tostring(default),
+		TextColor3 = C.accentHi,
+		Font = Enum.Font.GothamBold,
+		TextSize = 11,
+		TextXAlignment = Enum.TextXAlignment.Right,
+	})
+
+	local track = newInst("Frame", row, {
+		Size = UDim2.new(1, -24, 0, 6),
+		Position = UDim2.new(0, 12, 0, 34),
+		BackgroundColor3 = C.lift,
+		BorderSizePixel = 0,
+	})
+	corner(3, track)
+
+	local fill = newInst("Frame", track, {
+		Size = UDim2.new((default - min) / (max - min), 0, 1, 0),
+		BackgroundColor3 = C.accent,
+		BorderSizePixel = 0,
+	})
+	corner(3, fill)
+
+	local knob = newInst("Frame", fill, {
+		Size = UDim2.new(0, 14, 0, 14),
+		Position = UDim2.new(1, -7, 0.5, -7),
+		BackgroundColor3 = C.accentHi,
+		BorderSizePixel = 0,
+	})
+	corner(7, knob)
+
+	local dragging = false
+	local val = default
+
+	local function setVal(nx)
+		local rel = math.clamp((nx - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+		val = math.floor(min + rel * (max - min))
+		valLbl.Text = tostring(val)
+		tween(fill, TI(0.05), {Size = UDim2.new(rel, 0, 1, 0)})
+		onchange(val)
+	end
+
+	knob.InputBegan:Connect(function(inp) if inp.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true end end)
+	UIS.InputEnded:Connect(function(inp) if inp.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+	UIS.InputChanged:Connect(function(inp)
+		if dragging and inp.UserInputType == Enum.UserInputType.MouseMovement then
+			setVal(inp.Position.X)
+		end
+	end)
+	track.InputBegan:Connect(function(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 then setVal(inp.Position.X) end
+	end)
+
+	return row
+end
+
+makeSliderRow("Walk Speed", 0, 500, 16, function(v)
+	local h = lp.Character and lp.Character:FindFirstChild("Humanoid")
+	if h then h.WalkSpeed = v end
+end)
+makeSliderRow("Jump Power", 0, 500, 50, function(v)
+	local h = lp.Character and lp.Character:FindFirstChild("Humanoid")
+	if h then h.JumpPower = v end
+end)
+makeSliderRow("Fly Speed", 10, 500, 60, function(v) state.flySpeed = v end)
+makeSliderRow("Gravity", 0, 400, 196, function(v) workspace.Gravity = v end)
+
+-- Toggle expand
+local function setExpanded(val)
+	expanded = val
+	local th = val and WIN_H_EXPANDED or WIN_H_COLLAPSED
+	tween(main, TI(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+		Size = UDim2.new(0, WIN_W, 0, th)
+	})
+	if not val then inputBox:ReleaseFocus() end
+end
+
+toggleBtn.MouseButton1Click:Connect(function() setExpanded(not expanded) end)
+closeBtn.MouseButton1Click:Connect(function() setExpanded(false) end)
+
+-- Dragging
+local dragStart, startPos, dragging2
+header.InputBegan:Connect(function(inp)
+	if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging2 = true
+		dragStart = inp.Position
+		startPos = main.Position
+	end
+end)
+UIS.InputEnded:Connect(function(inp)
+	if inp.UserInputType == Enum.UserInputType.MouseButton1 then dragging2 = false end
+end)
+UIS.InputChanged:Connect(function(inp)
+	if dragging2 and inp.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = inp.Position - dragStart
+		main.Position = UDim2.new(
+			startPos.X.Scale, startPos.X.Offset + delta.X,
+			startPos.Y.Scale, startPos.Y.Offset + delta.Y
+		)
+	end
 end)
 
--- Stats Loop
-task.spawn(function()
-    local fps = 60
-    local last = tick()
-    while task.wait(0.5) do
-        local now = tick()
-        local delta = now - last
-        last = now
-        fps = math.floor(1/delta)
-        
-        local ping = 0
-        pcall(function()
-            ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
-        end)
-        
-        fpsLbl.Text = fps .. " FPS"
-        fpsLbl.TextColor3 = fps > 50 and Color3.fromRGB(134, 239, 172) or fps > 30 and Color3.fromRGB(250, 204, 21) or Color3.fromRGB(248, 113, 113)
-        
-        pingLbl.Text = ping .. "ms"
-        pingLbl.TextColor3 = ping < 100 and Color3.fromRGB(134, 239, 172) or ping < 200 and Color3.fromRGB(250, 204, 21) or Color3.fromRGB(248, 113, 113)
-    end
+-- Command execution
+inputBox.FocusLost:Connect(function(enter)
+	if not enter or inputBox.Text == "" then return end
+	local txt = inputBox.Text
+	if txt:sub(1, #state.prefix) == state.prefix then txt = txt:sub(#state.prefix + 1) end
+	runCmd(txt)
+	inputBox.Text = ""
 end)
 
--- Tracers Render
+-- Placeholder sync
+RunService.Heartbeat:Connect(function()
+	inputBox.PlaceholderText = state.prefix .. "command args..."
+end)
+
+-- Chat hook via Chatted event
+lp.Chatted:Connect(function(msg)
+	if msg:sub(1, #state.prefix) == state.prefix then
+		local cmd = msg:sub(#state.prefix + 1)
+		if cmd ~= "" then runCmd(cmd) end
+	end
+end)
+
+-- FPS counter (proper — frame delta via RenderStepped)
+local fpsBuffer = {}
+RunService.RenderStepped:Connect(function(dt)
+	table.insert(fpsBuffer, dt)
+	if #fpsBuffer > 30 then table.remove(fpsBuffer, 1) end
+end)
+
+-- Tracers render
 RunService.RenderStepped:Connect(function()
-    if not state.tracers then return end
-    local cam = workspace.CurrentCamera
-    local viewport = cam.ViewportSize
-    
-    for _, trace in ipairs(state.traceObjs) do
-        if trace.target and trace.target.Parent then
-            local pos, vis = cam:WorldToViewportPoint(trace.target.Position)
-            trace.line.From = Vector2.new(viewport.X/2, viewport.Y)
-            trace.line.To = Vector2.new(pos.X, pos.Y)
-            trace.line.Visible = vis and pos.Z > 0
-        else
-            trace.line.Visible = false
-        end
-    end
+	if not state.tracers then return end
+	local cam = workspace.CurrentCamera
+	local vp = cam.ViewportSize
+	local hr = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+	for _, t in ipairs(state.traceObjs) do
+		if t.target and t.target.Parent and t.line then
+			local pos, vis = cam:WorldToViewportPoint(t.target.Position)
+			t.line.From = Vector2.new(vp.X / 2, vp.Y)
+			t.line.To = Vector2.new(pos.X, pos.Y)
+			t.line.Visible = vis and pos.Z > 0
+		else
+			pcall(function() t.line.Visible = false end)
+		end
+	end
 end)
 
--- Mobile Support
-if UserInputService.TouchEnabled then
-    main.Position = UDim2.new(1, -350, 0, 100)
-    main.Size = UDim2.new(0, 300, 0, 50)
-    cmdBtn.Size = UDim2.new(0, 40, 0, 40)
-    settingsBtn.Size = UDim2.new(0, 40, 0, 40)
-end
+-- Stats update
+task.spawn(function()
+	while task.wait(0.75) do
+		local fps = 60
+		if #fpsBuffer > 0 then
+			local sum = 0
+			for _, v in ipairs(fpsBuffer) do sum += v end
+			fps = math.floor(1 / (sum / #fpsBuffer))
+		end
 
-notify("Lavender", "GUI Loaded! Prefix: " .. state.prefix, 4, "success")
+		local ping = 0
+		pcall(function()
+			ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+		end)
 
--- Character respawn handler
-lp.CharacterAdded:Connect(function()
-    task.wait(1)
-    if state.fly then state.fly = false; runCmd("fly") end
-    if state.noclip then state.noclip = false; runCmd("noclip") end
+		fpsLbl.Text = fps .. " FPS"
+		fpsLbl.TextColor3 = fps >= 50 and C.green or fps >= 30 and C.yellow or C.red
+
+		pingLbl.Text = ping .. " ms"
+		pingLbl.TextColor3 = ping < 80 and C.green or ping < 150 and C.yellow or C.red
+	end
 end)
+
+notify("Lavender", "Loaded · prefix: " .. state.prefix, 4, "success")
