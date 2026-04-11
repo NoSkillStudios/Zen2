@@ -1,20 +1,17 @@
 local Players          = game:GetService("Players")
 local RunService       = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local TweenService     = game:GetService("TweenService")
 local Lighting         = game:GetService("Lighting")
 local TeleportService  = game:GetService("TeleportService")
 local Stats            = game:GetService("Stats")
 local lp               = Players.LocalPlayer
 local cam              = workspace.CurrentCamera
 
-local state = getgenv()._lav_state
-local notify = getgenv()._lav_notify
-
+local function getState() return getgenv()._lav_state end
+local function notify(t, b, d) if getgenv()._lav_notify then getgenv()._lav_notify(t, b, d) end end
 local function getChar() return lp.Character end
 local function getHRP() local c = getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
 local function getHum() local c = getChar(); return c and c:FindFirstChild("Humanoid") end
-
 local function resolve(arg)
 	if not arg or arg == "" then return nil end
 	local a = arg:lower()
@@ -25,556 +22,362 @@ end
 
 local CMDS = {}
 
-CMDS.speed = {
-	desc = "Sets WalkSpeed of a player",
-	args = "<value> [player]",
-	fn = function(args)
-		local v = tonumber(args[1])
-		if not v then notify("speed", "Usage: speed <value> [player]") return end
-		local tgt = args[2] and resolve(args[2]) or lp
-		if not tgt then notify("speed", "Player not found") return end
-		local h = tgt.Character and tgt.Character:FindFirstChild("Humanoid")
-		if h then h.WalkSpeed = v; notify("speed", tgt.Name .. " → " .. v) end
-	end
-}
+CMDS.speed = {desc="Sets WalkSpeed", args="<value> [player]", fn=function(args)
+	local v = tonumber(args[1]); if not v then notify("speed","Usage: speed <value> [player]") return end
+	local tgt = (args[2] and resolve(args[2])) or lp; if not tgt then notify("speed","Player not found") return end
+	local h = tgt.Character and tgt.Character:FindFirstChild("Humanoid")
+	if h then h.WalkSpeed = v; notify("speed", tgt.Name.." → "..v) end
+end}
 
-CMDS.jump = {
-	desc = "Sets JumpPower of a player",
-	args = "<value> [player]",
-	fn = function(args)
-		local v = tonumber(args[1])
-		if not v then notify("jump", "Usage: jump <value> [player]") return end
-		local tgt = args[2] and resolve(args[2]) or lp
-		if not tgt then notify("jump", "Player not found") return end
-		local h = tgt.Character and tgt.Character:FindFirstChild("Humanoid")
-		if h then h.JumpPower = v; notify("jump", tgt.Name .. " → " .. v) end
-	end
-}
+CMDS.jump = {desc="Sets JumpPower", args="<value> [player]", fn=function(args)
+	local v = tonumber(args[1]); if not v then notify("jump","Usage: jump <value> [player]") return end
+	local tgt = (args[2] and resolve(args[2])) or lp; if not tgt then notify("jump","Player not found") return end
+	local h = tgt.Character and tgt.Character:FindFirstChild("Humanoid")
+	if h then h.JumpPower = v; notify("jump", tgt.Name.." → "..v) end
+end}
 
-CMDS.fly = {
-	desc = "Toggles fly mode on yourself",
-	args = "",
-	fn = function()
-		state.fly = not state.fly
-		if state.fly then
-			local hum, hrp = getHum(), getHRP()
-			if not hum or not hrp then state.fly = false return end
-			hum.PlatformStand = true
-			if state.flyConn then state.flyConn:Disconnect() end
-			state.flyConn = RunService.RenderStepped:Connect(function()
-				if not state.fly then
-					state.flyConn:Disconnect(); state.flyConn = nil
-					local h2 = getHum(); if h2 then h2.PlatformStand = false end
-					local r2 = getHRP(); if r2 then r2.AssemblyLinearVelocity = Vector3.zero end
-					return
-				end
-				local r = getHRP(); if not r then return end
-				local dir = Vector3.zero
-				if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir += cam.CFrame.LookVector end
-				if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir -= cam.CFrame.LookVector end
-				if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir -= cam.CFrame.RightVector end
-				if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir += cam.CFrame.RightVector end
-				if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir += Vector3.yAxis end
-				if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir -= Vector3.yAxis end
-				r.AssemblyLinearVelocity = dir.Magnitude > 0 and dir.Unit * (state.flySpeed or 60) or Vector3.zero
-				r.CFrame = CFrame.new(r.Position, r.Position + cam.CFrame.LookVector)
-			end)
-			notify("fly", "Enabled — WASD + Space/Shift")
-		else
-			if state.flyConn then state.flyConn:Disconnect(); state.flyConn = nil end
-			local h = getHum(); if h then h.PlatformStand = false end
-			local r = getHRP(); if r then r.AssemblyLinearVelocity = Vector3.zero end
-			notify("fly", "Disabled")
-		end
-	end
-}
-
-CMDS.noclip = {
-	desc = "Toggles noclip on yourself",
-	args = "",
-	fn = function()
-		state.noclip = not state.noclip
-		if state.noclip then
-			if state.noclipConn then state.noclipConn:Disconnect() end
-			state.noclipConn = RunService.Stepped:Connect(function()
-				if not state.noclip then
-					state.noclipConn:Disconnect(); state.noclipConn = nil
-					local c = getChar(); if c then for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = true end end end
-					return
-				end
-				local c = getChar(); if not c then return end
-				for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end
-			end)
-			notify("noclip", "Enabled")
-		else
-			if state.noclipConn then state.noclipConn:Disconnect(); state.noclipConn = nil end
-			local c = getChar()
-			if c then for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = true end end end
-			notify("noclip", "Disabled")
-		end
-	end
-}
-
-CMDS.invisible = {
-	desc = "Toggles local invisibility",
-	args = "",
-	fn = function()
-		state.invisible = not state.invisible
-		local c = getChar(); if not c then return end
-		for _, p in ipairs(c:GetDescendants()) do
-			if p:IsA("BasePart") then p.LocalTransparencyModifier = state.invisible and 1 or 0 end
-		end
-		notify("invisible", state.invisible and "Enabled" or "Disabled")
-	end
-}
-
-CMDS.freeze = {
-	desc = "Freezes a player in place (local)",
-	args = "<player>",
-	fn = function(args)
-		local tgt = resolve(args[1])
-		if not tgt then notify("freeze", "Player not found") return end
-		local c = tgt.Character; local r = c and c:FindFirstChild("HumanoidRootPart")
-		if r then r.Anchored = true; notify("freeze", tgt.Name .. " frozen") end
-	end
-}
-
-CMDS.unfreeze = {
-	desc = "Unfreezes a player (local)",
-	args = "<player>",
-	fn = function(args)
-		local tgt = resolve(args[1])
-		if not tgt then notify("unfreeze", "Player not found") return end
-		local c = tgt.Character; local r = c and c:FindFirstChild("HumanoidRootPart")
-		if r then r.Anchored = false; notify("unfreeze", tgt.Name .. " unfrozen") end
-	end
-}
-
-CMDS.kill = {
-	desc = "Kills yourself (FE-safe)",
-	args = "",
-	fn = function()
-		local c = getChar(); local h = c and c:FindFirstChild("Humanoid")
-		if h then h.Health = 0 end
-		notify("kill", "Self-killed")
-	end
-}
-
-CMDS.respawn = {
-	desc = "Respawns yourself",
-	args = "",
-	fn = function()
-		lp:LoadCharacter()
-		notify("respawn", "Respawned")
-	end
-}
-
-CMDS.tp = {
-	desc = "Teleports you to a player",
-	args = "<player>",
-	fn = function(args)
-		local tgt = resolve(args[1])
-		if not tgt then notify("tp", "Player not found") return end
-		local r = getHRP()
-		local tc = tgt.Character; local tr = tc and tc:FindFirstChild("HumanoidRootPart")
-		if r and tr then r.CFrame = tr.CFrame + Vector3.new(0, 4, 0); notify("tp", "→ " .. tgt.Name) end
-	end
-}
-
-CMDS.bring = {
-	desc = "Brings a player to you (local)",
-	args = "<player>",
-	fn = function(args)
-		local tgt = resolve(args[1])
-		if not tgt then notify("bring", "Player not found") return end
-		local r = getHRP()
-		local tc = tgt.Character; local tr = tc and tc:FindFirstChild("HumanoidRootPart")
-		if r and tr then tr.CFrame = r.CFrame + Vector3.new(3, 0, 0); notify("bring", tgt.Name .. " brought") end
-	end
-}
-
-CMDS.fling = {
-	desc = "Flings yourself into a player",
-	args = "<player>",
-	fn = function(args)
-		local tgt = resolve(args[1])
-		if not tgt then notify("fling", "Player not found") return end
-		local r = getHRP()
-		local tc = tgt.Character; local tr = tc and tc:FindFirstChild("HumanoidRootPart")
-		if r and tr then
-			r.CFrame = tr.CFrame
-			r.AssemblyLinearVelocity = Vector3.new(math.random(-200,200), math.random(400,800), math.random(-200,200))
-			notify("fling", tgt.Name .. " flung")
-		end
-	end
-}
-
-CMDS.sit = {
-	desc = "Forces yourself to sit",
-	args = "",
-	fn = function()
-		local h = getHum(); if h then h.Sit = true end
-		notify("sit", "Sitting")
-	end
-}
-
-CMDS.god = {
-	desc = "Toggles godmode on yourself",
-	args = "",
-	fn = function()
-		state.god = not state.god
-		if state.godConn then state.godConn:Disconnect(); state.godConn = nil end
-		local h = getHum()
-		if state.god then
-			if h then h.MaxHealth = math.huge; h.Health = math.huge end
-			state.godConn = RunService.Heartbeat:Connect(function()
-				if not state.god then state.godConn:Disconnect(); state.godConn = nil return end
-				local hh = getHum(); if hh then hh.Health = math.huge end
-			end)
-			notify("god", "Enabled")
-		else
-			if h then h.MaxHealth = 100; h.Health = 100 end
-			notify("god", "Disabled")
-		end
-	end
-}
-
-CMDS.esp = {
-	desc = "Toggles player ESP",
-	args = "",
-	fn = function()
-		state.esp = not state.esp
-		if state.esp then
-			for _, p in ipairs(Players:GetPlayers()) do
-				if p ~= lp and p.Character then
-					local head = p.Character:FindFirstChild("Head") or p.Character:FindFirstChild("HumanoidRootPart")
-					if head then
-						local bb = Instance.new("BillboardGui")
-						bb.Name = "LavESP"; bb.Adornee = head; bb.AlwaysOnTop = true
-						bb.Size = UDim2.fromOffset(100, 30); bb.StudsOffset = Vector3.new(0, 2.5, 0)
-						bb.ResetOnSpawn = false; bb.Parent = head
-						local nl = Instance.new("TextLabel", bb)
-						nl.Size = UDim2.fromScale(1,1); nl.BackgroundTransparency = 1
-						nl.TextColor3 = Color3.fromRGB(200,170,255); nl.Font = Enum.Font.GothamBold
-						nl.TextSize = 11; nl.TextXAlignment = Enum.TextXAlignment.Center
-						nl.Text = p.Name
-						local hl = Instance.new("Highlight")
-						hl.Name = "LavHL"; hl.FillTransparency = 1
-						hl.OutlineColor = Color3.fromRGB(160,120,255); hl.OutlineTransparency = 0
-						hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-						hl.Parent = p.Character
-						table.insert(state.espObjs, bb)
-						table.insert(state.espObjs, hl)
-					end
-				end
+CMDS.fly = {desc="Toggles fly mode", args="", fn=function()
+	local s = getState(); s.fly = not s.fly
+	if s.fly then
+		local hum, hrp = getHum(), getHRP()
+		if not hum or not hrp then s.fly = false return end
+		hum.PlatformStand = true
+		if s.flyConn then s.flyConn:Disconnect() end
+		s.flyConn = RunService.RenderStepped:Connect(function()
+			if not s.fly then
+				s.flyConn:Disconnect(); s.flyConn = nil
+				local h2 = getHum(); if h2 then h2.PlatformStand = false end
+				local r2 = getHRP(); if r2 then r2.AssemblyLinearVelocity = Vector3.zero end
+				return
 			end
-			notify("esp", "Enabled")
-		else
-			for _, v in ipairs(state.espObjs) do pcall(function() v:Destroy() end) end
-			state.espObjs = {}
-			notify("esp", "Disabled")
-		end
+			local r = getHRP(); if not r then return end
+			local dir = Vector3.zero
+			if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir += cam.CFrame.LookVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir -= cam.CFrame.LookVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir -= cam.CFrame.RightVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir += cam.CFrame.RightVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir += Vector3.yAxis end
+			if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir -= Vector3.yAxis end
+			r.AssemblyLinearVelocity = dir.Magnitude > 0 and dir.Unit * (s.flySpeed or 60) or Vector3.zero
+			r.CFrame = CFrame.new(r.Position, r.Position + cam.CFrame.LookVector)
+		end)
+		notify("fly","Enabled")
+	else
+		local s2 = getState()
+		if s2.flyConn then s2.flyConn:Disconnect(); s2.flyConn = nil end
+		local h = getHum(); if h then h.PlatformStand = false end
+		local r = getHRP(); if r then r.AssemblyLinearVelocity = Vector3.zero end
+		notify("fly","Disabled")
 	end
-}
+end}
 
-CMDS.chams = {
-	desc = "Highlights all players",
-	args = "",
-	fn = function()
-		state.chams = not state.chams
-		if state.chams then
-			for _, p in ipairs(Players:GetPlayers()) do
-				if p ~= lp and p.Character then
-					local hl = Instance.new("Highlight")
-					hl.Name = "LavCham"
-					hl.FillColor = Color3.fromRGB(130,90,220); hl.FillTransparency = 0.6
-					hl.OutlineColor = Color3.fromRGB(200,170,255); hl.OutlineTransparency = 0
-					hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-					hl.Parent = p.Character
-					table.insert(state.chamObjs, hl)
-				end
+CMDS.noclip = {desc="Toggles noclip", args="", fn=function()
+	local s = getState(); s.noclip = not s.noclip
+	if s.noclip then
+		if s.noclipConn then s.noclipConn:Disconnect() end
+		s.noclipConn = RunService.Stepped:Connect(function()
+			if not s.noclip then
+				s.noclipConn:Disconnect(); s.noclipConn = nil
+				local c = getChar(); if c then for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = true end end end
+				return
 			end
-			notify("chams", "Enabled")
-		else
-			for _, v in ipairs(state.chamObjs) do pcall(function() v:Destroy() end) end
-			state.chamObjs = {}
-			notify("chams", "Disabled")
-		end
+			local c = getChar(); if not c then return end
+			for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end
+		end)
+		notify("noclip","Enabled")
+	else
+		if s.noclipConn then s.noclipConn:Disconnect(); s.noclipConn = nil end
+		local c = getChar(); if c then for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = true end end end
+		notify("noclip","Disabled")
 	end
-}
+end}
 
-CMDS.nametags = {
-	desc = "Shows nametags through walls",
-	args = "",
-	fn = function()
-		state.nametags = not state.nametags
-		if state.nametags then
-			for _, p in ipairs(Players:GetPlayers()) do
-				if p ~= lp and p.Character then
-					local r = p.Character:FindFirstChild("HumanoidRootPart"); if not r then return end
-					local bb = Instance.new("BillboardGui")
-					bb.Name = "LavTag"; bb.Adornee = r; bb.AlwaysOnTop = true
-					bb.Size = UDim2.fromOffset(120, 20); bb.StudsOffset = Vector3.new(0, 3.5, 0)
-					bb.ResetOnSpawn = false; bb.Parent = r
-					local nl = Instance.new("TextLabel", bb)
-					nl.Size = UDim2.fromScale(1,1); nl.BackgroundTransparency = 1
-					nl.TextColor3 = Color3.fromRGB(220,210,245); nl.Font = Enum.Font.GothamSemibold
-					nl.TextSize = 11; nl.TextXAlignment = Enum.TextXAlignment.Center
-					nl.Text = p.Name
-					table.insert(state.tagObjs, bb)
-				end
-			end
-			notify("nametags", "Enabled")
-		else
-			for _, v in ipairs(state.tagObjs) do pcall(function() v:Destroy() end) end
-			state.tagObjs = {}
-			notify("nametags", "Disabled")
-		end
+CMDS.invisible = {desc="Toggles local invisibility", args="", fn=function()
+	local s = getState(); s.invisible = not s.invisible
+	local c = getChar(); if not c then return end
+	for _, p in ipairs(c:GetDescendants()) do
+		if p:IsA("BasePart") then p.LocalTransparencyModifier = s.invisible and 1 or 0 end
 	end
-}
+	notify("invisible", s.invisible and "Enabled" or "Disabled")
+end}
 
-CMDS.tracers = {
-	desc = "Draws lines to all players",
-	args = "",
-	fn = function()
-		state.tracers = not state.tracers
-		if state.tracers then
-			for _, p in ipairs(Players:GetPlayers()) do
-				if p ~= lp and p.Character then
-					local r = p.Character:FindFirstChild("HumanoidRootPart"); if not r then return end
-					local line = Drawing.new("Line")
-					line.Thickness = 1; line.Color = Color3.fromRGB(160,120,255)
-					line.Transparency = 0.4; line.Visible = true
-					table.insert(state.traceObjs, {line=line, target=r})
-				end
-			end
-			notify("tracers", "Enabled")
-		else
-			for _, v in ipairs(state.traceObjs) do pcall(function() v.line:Remove() end) end
-			state.traceObjs = {}
-			notify("tracers", "Disabled")
-		end
+CMDS.freeze = {desc="Freezes a player locally", args="<player>", fn=function(args)
+	local tgt = resolve(args[1]); if not tgt then notify("freeze","Player not found") return end
+	local r = tgt.Character and tgt.Character:FindFirstChild("HumanoidRootPart")
+	if r then r.Anchored = true; notify("freeze", tgt.Name.." frozen") end
+end}
+
+CMDS.unfreeze = {desc="Unfreezes a player", args="<player>", fn=function(args)
+	local tgt = resolve(args[1]); if not tgt then notify("unfreeze","Player not found") return end
+	local r = tgt.Character and tgt.Character:FindFirstChild("HumanoidRootPart")
+	if r then r.Anchored = false; notify("unfreeze", tgt.Name.." unfrozen") end
+end}
+
+CMDS.kill = {desc="Kills yourself (FE)", args="", fn=function()
+	local h = getHum(); if h then h.Health = 0 end
+	notify("kill","Self-killed")
+end}
+
+CMDS.respawn = {desc="Respawns yourself", args="", fn=function()
+	lp:LoadCharacter(); notify("respawn","Respawned")
+end}
+
+CMDS.tp = {desc="Teleports you to a player", args="<player>", fn=function(args)
+	local tgt = resolve(args[1]); if not tgt then notify("tp","Player not found") return end
+	local r = getHRP(); local tr = tgt.Character and tgt.Character:FindFirstChild("HumanoidRootPart")
+	if r and tr then r.CFrame = tr.CFrame + Vector3.new(0,4,0); notify("tp","→ "..tgt.Name) end
+end}
+
+CMDS.bring = {desc="Brings a player to you (local)", args="<player>", fn=function(args)
+	local tgt = resolve(args[1]); if not tgt then notify("bring","Player not found") return end
+	local r = getHRP(); local tr = tgt.Character and tgt.Character:FindFirstChild("HumanoidRootPart")
+	if r and tr then tr.CFrame = r.CFrame + Vector3.new(3,0,0); notify("bring", tgt.Name.." brought") end
+end}
+
+CMDS.fling = {desc="Flings yourself into a player", args="<player>", fn=function(args)
+	local tgt = resolve(args[1]); if not tgt then notify("fling","Player not found") return end
+	local r = getHRP(); local tr = tgt.Character and tgt.Character:FindFirstChild("HumanoidRootPart")
+	if r and tr then
+		r.CFrame = tr.CFrame
+		r.AssemblyLinearVelocity = Vector3.new(math.random(-200,200), math.random(400,800), math.random(-200,200))
+		notify("fling", tgt.Name.." flung")
 	end
-}
+end}
 
-CMDS.gravity = {
-	desc = "Sets workspace gravity",
-	args = "<value>",
-	fn = function(args)
-		local v = tonumber(args[1])
-		if not v then notify("gravity", "Usage: gravity <value>") return end
-		workspace.Gravity = v; notify("gravity", "→ " .. v)
+CMDS.sit = {desc="Forces yourself to sit", args="", fn=function()
+	local h = getHum(); if h then h.Sit = true end; notify("sit","Sitting")
+end}
+
+CMDS.god = {desc="Toggles godmode", args="", fn=function()
+	local s = getState(); s.god = not s.god
+	if s.godConn then s.godConn:Disconnect(); s.godConn = nil end
+	local h = getHum()
+	if s.god then
+		if h then h.MaxHealth = math.huge; h.Health = math.huge end
+		s.godConn = RunService.Heartbeat:Connect(function()
+			if not s.god then s.godConn:Disconnect(); s.godConn = nil return end
+			local hh = getHum(); if hh then hh.Health = math.huge end
+		end)
+		notify("god","Enabled")
+	else
+		if h then h.MaxHealth = 100; h.Health = 100 end
+		notify("god","Disabled")
 	end
-}
+end}
 
-CMDS.timeset = {
-	desc = "Sets lighting clock time",
-	args = "<0-24>",
-	fn = function(args)
-		local v = tonumber(args[1])
-		if not v then notify("timeset", "Usage: timeset <0-24>") return end
-		Lighting.ClockTime = v; notify("timeset", "Clock → " .. v)
-	end
-}
-
-CMDS.fog = {
-	desc = "Sets FogEnd value",
-	args = "<value>",
-	fn = function(args)
-		local v = tonumber(args[1])
-		if not v then notify("fog", "Usage: fog <value>") return end
-		Lighting.FogEnd = v; notify("fog", "FogEnd → " .. v)
-	end
-}
-
-CMDS.ambient = {
-	desc = "Sets lighting ambient color",
-	args = "<r> <g> <b>",
-	fn = function(args)
-		local r, g, b = tonumber(args[1]), tonumber(args[2]), tonumber(args[3])
-		if not r or not g or not b then notify("ambient", "Usage: ambient <r> <g> <b>") return end
-		Lighting.Ambient = Color3.fromRGB(r, g, b); notify("ambient", r.." "..g.." "..b)
-	end
-}
-
-CMDS.brightness = {
-	desc = "Sets lighting brightness",
-	args = "<value>",
-	fn = function(args)
-		local v = tonumber(args[1])
-		if not v then notify("brightness", "Usage: brightness <value>") return end
-		Lighting.Brightness = v; notify("brightness", "→ " .. v)
-	end
-}
-
-CMDS.players = {
-	desc = "Lists all players with distance",
-	args = "",
-	fn = function()
-		local r = getHRP(); local lines = {}
+CMDS.esp = {desc="Toggles player ESP", args="", fn=function()
+	local s = getState(); s.esp = not s.esp
+	if s.esp then
 		for _, p in ipairs(Players:GetPlayers()) do
-			local dist = "?"
-			if r and p.Character then
-				local tr = p.Character:FindFirstChild("HumanoidRootPart")
-				if tr then dist = math.floor((r.Position - tr.Position).Magnitude) .. "st" end
+			if p ~= lp and p.Character then
+				local head = p.Character:FindFirstChild("Head") or p.Character:FindFirstChild("HumanoidRootPart")
+				if head then
+					local bb = Instance.new("BillboardGui"); bb.Name="LavESP"; bb.Adornee=head
+					bb.AlwaysOnTop=true; bb.Size=UDim2.fromOffset(100,30); bb.StudsOffset=Vector3.new(0,2.5,0)
+					bb.ResetOnSpawn=false; bb.Parent=head
+					local nl = Instance.new("TextLabel",bb); nl.Size=UDim2.fromScale(1,1); nl.BackgroundTransparency=1
+					nl.TextColor3=Color3.fromRGB(210,185,255); nl.Font=Enum.Font.GothamBold; nl.TextSize=11
+					nl.TextXAlignment=Enum.TextXAlignment.Center; nl.Text=p.Name
+					local hl = Instance.new("Highlight"); hl.Name="LavHL"; hl.FillTransparency=1
+					hl.OutlineColor=Color3.fromRGB(148,100,255); hl.OutlineTransparency=0
+					hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent=p.Character
+					table.insert(s.espObjs,bb); table.insert(s.espObjs,hl)
+				end
 			end
-			table.insert(lines, p.Name .. " [" .. dist .. "]")
 		end
-		notify("players (" .. #lines .. ")", table.concat(lines, "  ·  "), 8)
+		notify("esp","Enabled")
+	else
+		for _, v in ipairs(s.espObjs) do pcall(function() v:Destroy() end) end
+		s.espObjs = {}; notify("esp","Disabled")
 	end
-}
+end}
 
-CMDS.serverid = {
-	desc = "Shows current server JobId",
-	args = "",
-	fn = function()
-		notify("serverid", game.JobId ~= "" and game.JobId or "Private / Studio")
-	end
-}
-
-CMDS.ping = {
-	desc = "Shows your current ping",
-	args = "",
-	fn = function()
-		local ok, v = pcall(function() return math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
-		notify("ping", ok and v .. "ms" or "unavailable")
-	end
-}
-
-CMDS.uptime = {
-	desc = "Shows server uptime",
-	args = "",
-	fn = function()
-		local t = Stats.Instance.serverTimeNow
-		notify("uptime", math.floor(t/3600).."h "..math.floor(t/60%60).."m "..math.floor(t%60).."s")
-	end
-}
-
-CMDS.serversize = {
-	desc = "Shows player count vs max",
-	args = "",
-	fn = function()
-		notify("serversize", Players.NumPlayers .. " / " .. Players.MaxPlayers)
-	end
-}
-
-CMDS.pm = {
-	desc = "Sends a fake local whisper",
-	args = "<player> <message>",
-	fn = function(args)
-		local tgt = resolve(args[1])
-		if not tgt then notify("pm", "Player not found") return end
-		table.remove(args, 1)
-		local msg = table.concat(args, " ")
-		pcall(function()
-			game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
-				Text = "[PM → " .. tgt.Name .. "] " .. msg,
-				Color = Color3.fromRGB(200, 160, 255),
-				Font = Enum.Font.GothamSemibold,
-				TextSize = 14,
-			})
-		end)
-	end
-}
-
-CMDS.spam = {
-	desc = "Spams a chat message",
-	args = "<times> <message>",
-	fn = function(args)
-		local times = math.min(tonumber(args[1]) or 5, 20)
-		table.remove(args, 1)
-		local msg = table.concat(args, " ")
-		if msg == "" then notify("spam", "Usage: spam <times> <message>") return end
-		task.spawn(function()
-			for _ = 1, times do
-				pcall(function()
-					game:GetService("ReplicatedStorage")
-						:WaitForChild("DefaultChatSystemChatEvents")
-						:WaitForChild("SayMessageRequest")
-						:FireServer(msg, "All")
-				end)
-				task.wait(0.35)
+CMDS.chams = {desc="Highlights all players", args="", fn=function()
+	local s = getState(); s.chams = not s.chams
+	if s.chams then
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p ~= lp and p.Character then
+				local hl = Instance.new("Highlight"); hl.Name="LavCham"
+				hl.FillColor=Color3.fromRGB(120,78,210); hl.FillTransparency=0.6
+				hl.OutlineColor=Color3.fromRGB(210,185,255); hl.OutlineTransparency=0
+				hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent=p.Character
+				table.insert(s.chamObjs,hl)
 			end
-		end)
-		notify("spam", times .. "x: " .. msg)
-	end
-}
-
-CMDS.hint = {
-	desc = "Shows a local hint message",
-	args = "<message>",
-	fn = function(args)
-		local msg = table.concat(args, " ")
-		if msg == "" then notify("hint", "Usage: hint <message>") return end
-		local h = Instance.new("Hint"); h.Text = msg; h.Parent = workspace
-		game:GetService("Debris"):AddItem(h, 5)
-		notify("hint", msg)
-	end
-}
-
-CMDS.reset = {
-	desc = "Respawns yourself",
-	args = "",
-	fn = function()
-		lp:LoadCharacter()
-	end
-}
-
-CMDS.goto = {
-	desc = "Teleports to coordinates",
-	args = "<x> <y> <z>",
-	fn = function(args)
-		local x, y, z = tonumber(args[1]), tonumber(args[2]), tonumber(args[3])
-		if not x or not y or not z then notify("goto", "Usage: goto <x> <y> <z>") return end
-		local r = getHRP()
-		if r then r.CFrame = CFrame.new(x, y, z); notify("goto", x..","..y..","..z) end
-	end
-}
-
-CMDS.pos = {
-	desc = "Shows your current position",
-	args = "",
-	fn = function()
-		local r = getHRP()
-		if r then
-			local p = r.Position
-			notify("pos", math.floor(p.X)..","..math.floor(p.Y)..","..math.floor(p.Z))
 		end
+		notify("chams","Enabled")
+	else
+		for _, v in ipairs(s.chamObjs) do pcall(function() v:Destroy() end) end
+		s.chamObjs = {}; notify("chams","Disabled")
 	end
-}
+end}
 
-CMDS.rejoin = {
-	desc = "Rejoins the current game",
-	args = "",
-	fn = function()
-		TeleportService:Teleport(game.PlaceId, lp)
-	end
-}
-
-CMDS.spectate = {
-	desc = "Spectates a player (blank to stop)",
-	args = "[player]",
-	fn = function(args)
-		if state.specConn then state.specConn:Disconnect(); state.specConn = nil end
-		state.spectate = false
-		if not args[1] or args[1] == "" then
-			cam.CameraType = Enum.CameraType.Custom
-			local h = getHum(); if h then cam.CameraSubject = h end
-			notify("spectate", "Stopped")
-			return
-		end
-		local tgt = resolve(args[1])
-		if not tgt then notify("spectate", "Player not found") return end
-		state.spectate = true
-		state.specConn = RunService.RenderStepped:Connect(function()
-			if not state.spectate then state.specConn:Disconnect(); state.specConn = nil return end
-			if tgt.Character then
-				local th = tgt.Character:FindFirstChild("Humanoid")
-				if th then cam.CameraType = Enum.CameraType.Custom; cam.CameraSubject = th end
+CMDS.nametags = {desc="Shows nametags through walls", args="", fn=function()
+	local s = getState(); s.nametags = not s.nametags
+	if s.nametags then
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p ~= lp and p.Character then
+				local r = p.Character:FindFirstChild("HumanoidRootPart"); if not r then return end
+				local bb = Instance.new("BillboardGui"); bb.Name="LavTag"; bb.Adornee=r; bb.AlwaysOnTop=true
+				bb.Size=UDim2.fromOffset(120,20); bb.StudsOffset=Vector3.new(0,3.5,0)
+				bb.ResetOnSpawn=false; bb.Parent=r
+				local nl = Instance.new("TextLabel",bb); nl.Size=UDim2.fromScale(1,1); nl.BackgroundTransparency=1
+				nl.TextColor3=Color3.fromRGB(225,215,248); nl.Font=Enum.Font.GothamSemibold; nl.TextSize=11
+				nl.TextXAlignment=Enum.TextXAlignment.Center; nl.Text=p.Name
+				table.insert(s.tagObjs,bb)
 			end
-		end)
-		notify("spectate", "Watching " .. tgt.Name)
+		end
+		notify("nametags","Enabled")
+	else
+		for _, v in ipairs(s.tagObjs) do pcall(function() v:Destroy() end) end
+		s.tagObjs = {}; notify("nametags","Disabled")
 	end
-}
+end}
+
+CMDS.tracers = {desc="Draws lines to all players", args="", fn=function()
+	local s = getState(); s.tracers = not s.tracers
+	if s.tracers then
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p ~= lp and p.Character then
+				local r = p.Character:FindFirstChild("HumanoidRootPart"); if not r then return end
+				local line = Drawing.new("Line"); line.Thickness=1; line.Color=Color3.fromRGB(148,100,255)
+				line.Transparency=0.4; line.Visible=true
+				table.insert(s.traceObjs,{line=line,target=r})
+			end
+		end
+		notify("tracers","Enabled")
+	else
+		for _, v in ipairs(s.traceObjs) do pcall(function() v.line:Remove() end) end
+		s.traceObjs = {}; notify("tracers","Disabled")
+	end
+end}
+
+CMDS.gravity = {desc="Sets workspace gravity", args="<value>", fn=function(args)
+	local v = tonumber(args[1]); if not v then notify("gravity","Usage: gravity <value>") return end
+	workspace.Gravity = v; notify("gravity","→ "..v)
+end}
+
+CMDS.timeset = {desc="Sets lighting clock time", args="<0-24>", fn=function(args)
+	local v = tonumber(args[1]); if not v then notify("timeset","Usage: timeset <0-24>") return end
+	Lighting.ClockTime = v; notify("timeset","→ "..v)
+end}
+
+CMDS.fog = {desc="Sets FogEnd value", args="<value>", fn=function(args)
+	local v = tonumber(args[1]); if not v then notify("fog","Usage: fog <value>") return end
+	Lighting.FogEnd = v; notify("fog","→ "..v)
+end}
+
+CMDS.ambient = {desc="Sets lighting ambient", args="<r> <g> <b>", fn=function(args)
+	local r,g,b = tonumber(args[1]),tonumber(args[2]),tonumber(args[3])
+	if not r or not g or not b then notify("ambient","Usage: ambient <r> <g> <b>") return end
+	Lighting.Ambient = Color3.fromRGB(r,g,b); notify("ambient",r.." "..g.." "..b)
+end}
+
+CMDS.brightness = {desc="Sets lighting brightness", args="<value>", fn=function(args)
+	local v = tonumber(args[1]); if not v then notify("brightness","Usage: brightness <value>") return end
+	Lighting.Brightness = v; notify("brightness","→ "..v)
+end}
+
+CMDS.players = {desc="Lists players with distance", args="", fn=function()
+	local r = getHRP(); local lines = {}
+	for _, p in ipairs(Players:GetPlayers()) do
+		local dist = "?"
+		if r and p.Character then
+			local tr = p.Character:FindFirstChild("HumanoidRootPart")
+			if tr then dist = math.floor((r.Position-tr.Position).Magnitude).."st" end
+		end
+		table.insert(lines, p.Name.." ["..dist.."]")
+	end
+	notify("players ("..#lines..")", table.concat(lines,"  ·  "), 8)
+end}
+
+CMDS.serverid = {desc="Shows server JobId", args="", fn=function()
+	notify("serverid", game.JobId ~= "" and game.JobId or "Private/Studio")
+end}
+
+CMDS.ping = {desc="Shows current ping", args="", fn=function()
+	local ok, v = pcall(function() return math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
+	notify("ping", ok and v.."ms" or "unavailable")
+end}
+
+CMDS.uptime = {desc="Shows server uptime", args="", fn=function()
+	local t = Stats.Instance.serverTimeNow
+	notify("uptime", math.floor(t/3600).."h "..math.floor(t/60%60).."m "..math.floor(t%60).."s")
+end}
+
+CMDS.serversize = {desc="Shows player count vs max", args="", fn=function()
+	notify("serversize", Players.NumPlayers.." / "..Players.MaxPlayers)
+end}
+
+CMDS.pm = {desc="Sends a fake local whisper", args="<player> <message>", fn=function(args)
+	local tgt = resolve(args[1]); if not tgt then notify("pm","Player not found") return end
+	table.remove(args,1)
+	pcall(function()
+		game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage",{
+			Text="[PM → "..tgt.Name.."] "..table.concat(args," "),
+			Color=Color3.fromRGB(200,160,255), Font=Enum.Font.GothamSemibold, TextSize=14,
+		})
+	end)
+end}
+
+CMDS.spam = {desc="Spams a chat message", args="<times> <message>", fn=function(args)
+	local times = math.min(tonumber(args[1]) or 5, 20); table.remove(args,1)
+	local msg = table.concat(args," "); if msg=="" then notify("spam","Usage: spam <times> <message>") return end
+	task.spawn(function()
+		for _ = 1, times do
+			pcall(function()
+				game:GetService("ReplicatedStorage"):WaitForChild("DefaultChatSystemChatEvents")
+					:WaitForChild("SayMessageRequest"):FireServer(msg,"All")
+			end)
+			task.wait(0.35)
+		end
+	end)
+	notify("spam", times.."x: "..msg)
+end}
+
+CMDS.hint = {desc="Shows a local hint", args="<message>", fn=function(args)
+	local msg = table.concat(args," "); if msg=="" then notify("hint","Usage: hint <message>") return end
+	local h = Instance.new("Hint"); h.Text=msg; h.Parent=workspace
+	game:GetService("Debris"):AddItem(h,5); notify("hint",msg)
+end}
+
+CMDS.reset = {desc="Respawns yourself", args="", fn=function()
+	lp:LoadCharacter()
+end}
+
+CMDS.goto = {desc="Teleports to coordinates", args="<x> <y> <z>", fn=function(args)
+	local x,y,z = tonumber(args[1]),tonumber(args[2]),tonumber(args[3])
+	if not x or not y or not z then notify("goto","Usage: goto <x> <y> <z>") return end
+	local r = getHRP(); if r then r.CFrame = CFrame.new(x,y,z); notify("goto",x..","..y..","..z) end
+end}
+
+CMDS.pos = {desc="Shows your position", args="", fn=function()
+	local r = getHRP(); if not r then return end
+	local p = r.Position; notify("pos", math.floor(p.X)..","..math.floor(p.Y)..","..math.floor(p.Z))
+end}
+
+CMDS.rejoin = {desc="Rejoins the current game", args="", fn=function()
+	TeleportService:Teleport(game.PlaceId, lp)
+end}
+
+CMDS.spectate = {desc="Spectates a player", args="[player]", fn=function(args)
+	local s = getState()
+	if s.specConn then s.specConn:Disconnect(); s.specConn = nil end
+	s.spectate = false
+	if not args[1] or args[1]=="" then
+		cam.CameraType = Enum.CameraType.Custom
+		local h = getHum(); if h then cam.CameraSubject = h end
+		notify("spectate","Stopped"); return
+	end
+	local tgt = resolve(args[1]); if not tgt then notify("spectate","Player not found") return end
+	s.spectate = true
+	s.specConn = RunService.RenderStepped:Connect(function()
+		if not s.spectate then s.specConn:Disconnect(); s.specConn = nil return end
+		if tgt.Character then
+			local th = tgt.Character:FindFirstChild("Humanoid")
+			if th then cam.CameraType = Enum.CameraType.Custom; cam.CameraSubject = th end
+		end
+	end)
+	notify("spectate","Watching "..tgt.Name)
+end}
 
 getgenv()._lav_cmds = CMDS
