@@ -7,415 +7,450 @@ local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
+local UIS = game:GetService("UserInputService")
 local Stats = game:GetService("Stats")
 local lp = Players.LocalPlayer
 
--- Color palette for reference
-local C = {
-    accent = Color3.fromRGB(167, 139, 250),
-    accentHi = Color3.fromRGB(216, 180, 254),
-    success = Color3.fromRGB(134, 239, 172),
-    warning = Color3.fromRGB(250, 204, 21),
-    error = Color3.fromRGB(248, 113, 113),
-}
-
--- State (shared with GUI)
 local state = {
-    fly = false, noclip = false, god = false, invisible = false,
-    esp = false, chams = false, nametags = false, tracers = false,
-    flySpeed = 60, prefix = ";",
-    espTargets = {}, flyConn = nil, noclipConn = nil, godConn = nil,
-    espObjs = {}, chamObjs = {}, traceObjs = {}
+	fly = false, noclip = false, god = false, invisible = false,
+	esp = false, chams = false, tracers = false,
+	flySpeed = 60, prefix = ";",
+	flyConn = nil, noclipConn = nil, godConn = nil,
+	espObjs = {}, chamObjs = {}, traceObjs = {},
 }
 getgenv()._lav_state = state
 
--- Notification function (placeholder until GUI loads)
 local function notify(title, body, duration, ntype)
-    if getgenv()._lav_notify then
-        getgenv()._lav_notify(title, body, duration, ntype)
-    else
-        print(string.format("[%s] %s: %s", ntype or "info", title, body))
-    end
+	if getgenv()._lav_notify then
+		getgenv()._lav_notify(title, body, duration, ntype)
+	end
 end
-getgenv()._lav_notify = notify
+getgenv()._lav_notify_proxy = function(t, b, d, n) notify(t, b, d, n) end
 
--- Smart player resolver (case insensitive, partial match)
-local function resolvePlayer(arg)
-    if not arg or arg == "" then return nil end
-    arg = arg:lower()
-    
-    if arg == "me" or arg == "local" then return lp end
-    if arg == "all" then return "all" end
-    if arg == "others" then return "others" end
-    if arg == "random" then 
-        local list = Players:GetPlayers()
-        return list[math.random(1, #list)]
-    end
-    
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p.Name:lower():sub(1, #arg) == arg or 
-           p.DisplayName:lower():sub(1, #arg) == arg then
-            return p
-        end
-    end
-    return nil
+local function resolve(arg)
+	if not arg or arg == "" then return nil end
+	local a = arg:lower()
+	if a == "me" or a == "local" then return lp end
+	if a == "all" then return "all" end
+	if a == "others" then return "others" end
+	if a == "random" then
+		local list = Players:GetPlayers()
+		return list[math.random(1, #list)]
+	end
+	for _, p in ipairs(Players:GetPlayers()) do
+		local ln, dn = p.Name:lower(), p.DisplayName:lower()
+		if ln:sub(1, #a) == a or dn:sub(1, #a) == a then return p end
+	end
+	return nil
 end
-getgenv()._lav_resolve = resolvePlayer
+getgenv()._lav_resolve = resolve
 
--- Command Registry
 local CMDS = {}
-local function register(name, aliases, desc, args, fn)
-    local cmd = {name = name, aliases = aliases, desc = desc, args = args, fn = fn}
-    CMDS[name] = cmd
-    for _, alias in ipairs(aliases) do
-        CMDS[alias] = cmd
-    end
+local function reg(name, aliases, desc, argfmt, fn)
+	local obj = {name = name, aliases = aliases, desc = desc, argfmt = argfmt, fn = fn}
+	CMDS[name] = obj
+	for _, al in ipairs(aliases) do CMDS[al] = obj end
 end
 
--- MOVEMENT
-register("speed", {"sp", "ws", "walkspeed"}, "Sets walkspeed", "<num> [target]", function(args)
-    local num = tonumber(args[1])
-    if not num then notify("Error", "Usage: speed <number> [target]", 3, "error") return end
-    
-    local target = args[2] and resolvePlayer(args[2]) or lp
-    
-    local function setSpeed(p)
-        local hum = p.Character and p.Character:FindFirstChild("Humanoid")
-        if hum then hum.WalkSpeed = num end
-    end
-    
-    if target == "all" then
-        for _, p in ipairs(Players:GetPlayers()) do setSpeed(p) end
-        notify("Speed", "Set ALL to " .. num, 3, "success")
-    elseif target == "others" then
-        for _, p in ipairs(Players:GetPlayers()) do if p ~= lp then setSpeed(p) end end
-        notify("Speed", "Set OTHERS to " .. num, 3, "success")
-    elseif target then
-        setSpeed(target)
-        notify("Speed", target.Name .. " → " .. num, 3, "success")
-    end
+local function getChar() return lp.Character end
+local function getHum() return getChar() and getChar():FindFirstChild("Humanoid") end
+local function getHRP() return getChar() and getChar():FindFirstChild("HumanoidRootPart") end
+
+reg("speed", {"sp", "ws"}, "Set walkspeed", "<num> [target]", function(args)
+	local n = tonumber(args[1])
+	if not n then notify("Speed", "Usage: speed <num>", 3, "error") return end
+	local t = args[2] and resolve(args[2]) or lp
+	local function apply(p)
+		local h = p.Character and p.Character:FindFirstChild("Humanoid")
+		if h then h.WalkSpeed = n end
+	end
+	if t == "all" then for _, p in ipairs(Players:GetPlayers()) do apply(p) end
+	elseif t == "others" then for _, p in ipairs(Players:GetPlayers()) do if p ~= lp then apply(p) end end
+	elseif t then apply(t) end
+	notify("Speed", (typeof(t) == "Instance" and t.Name or tostring(t)) .. " → " .. n, 3, "success")
 end)
 
-register("jump", {"jp", "jumppower"}, "Sets jumppower", "<num> [target]", function(args)
-    local num = tonumber(args[1])
-    if not num then notify("Error", "Usage: jump <number>", 3, "error") return end
-    local hum = lp.Character and lp.Character:FindFirstChild("Humanoid")
-    if hum then hum.JumpPower = num; notify("Jump", "→ " .. num, 3, "success") end
+reg("jump", {"jp"}, "Set jump power", "<num>", function(args)
+	local n = tonumber(args[1])
+	if not n then notify("Jump", "Usage: jump <num>", 3, "error") return end
+	local h = getHum()
+	if h then h.JumpPower = n; notify("Jump", "→ " .. n, 3, "success") end
 end)
 
-register("fly", {"fl"}, "Toggles flight", "[speed]", function(args)
-    state.fly = not state.fly
-    if args[1] then state.flySpeed = tonumber(args[1]) or 60 end
-    
-    if state.fly then
-        local hum = lp.Character and lp.Character:FindFirstChild("Humanoid")
-        local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-        if not hum or not hrp then state.fly = false return end
-        
-        hum.PlatformStand = true
-        if state.flyConn then state.flyConn:Disconnect() end
-        
-        local cam = workspace.CurrentCamera
-        state.flyConn = RunService.RenderStepped:Connect(function()
-            if not state.fly then return end
-            local r = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-            if not r then return end
-            
-            local dir = Vector3.zero
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir += cam.CFrame.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir -= cam.CFrame.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir -= cam.CFrame.RightVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir += cam.CFrame.RightVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir += Vector3.yAxis end
-            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir -= Vector3.yAxis end
-            
-            r.AssemblyLinearVelocity = dir.Magnitude > 0 and dir.Unit * state.flySpeed or Vector3.zero
-            r.CFrame = CFrame.new(r.Position, r.Position + cam.CFrame.LookVector)
-        end)
-        notify("Fly", "Enabled (" .. state.flySpeed .. ")", 3, "success")
-    else
-        if state.flyConn then state.flyConn:Disconnect(); state.flyConn = nil end
-        local h = lp.Character and lp.Character:FindFirstChild("Humanoid")
-        if h then h.PlatformStand = false end
-        local r = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-        if r then r.AssemblyLinearVelocity = Vector3.zero end
-        notify("Fly", "Disabled", 3, "warning")
-    end
+reg("fly", {"fl"}, "Toggle fly", "[speed]", function(args)
+	state.fly = not state.fly
+	if args[1] then state.flySpeed = tonumber(args[1]) or state.flySpeed end
+
+	if state.fly then
+		local h, r = getHum(), getHRP()
+		if not h or not r then state.fly = false return end
+		h.PlatformStand = true
+		if state.flyConn then state.flyConn:Disconnect() end
+		local cam = workspace.CurrentCamera
+		state.flyConn = RunService.RenderStepped:Connect(function()
+			if not state.fly then return end
+			local root = getHRP()
+			if not root then return end
+			local dir = Vector3.zero
+			if UIS:IsKeyDown(Enum.KeyCode.W) then dir += cam.CFrame.LookVector end
+			if UIS:IsKeyDown(Enum.KeyCode.S) then dir -= cam.CFrame.LookVector end
+			if UIS:IsKeyDown(Enum.KeyCode.A) then dir -= cam.CFrame.RightVector end
+			if UIS:IsKeyDown(Enum.KeyCode.D) then dir += cam.CFrame.RightVector end
+			if UIS:IsKeyDown(Enum.KeyCode.Space) then dir += Vector3.yAxis end
+			if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then dir -= Vector3.yAxis end
+			root.AssemblyLinearVelocity = dir.Magnitude > 0 and dir.Unit * state.flySpeed or Vector3.zero
+			root.CFrame = CFrame.new(root.Position, root.Position + cam.CFrame.LookVector)
+		end)
+		notify("Fly", "ON · " .. state.flySpeed, 3, "success")
+	else
+		if state.flyConn then state.flyConn:Disconnect(); state.flyConn = nil end
+		local h2, r2 = getHum(), getHRP()
+		if h2 then h2.PlatformStand = false end
+		if r2 then r2.AssemblyLinearVelocity = Vector3.zero end
+		notify("Fly", "OFF", 3, "warning")
+	end
 end)
 
-register("noclip", {"nc"}, "Toggles noclip", "", function()
-    state.noclip = not state.noclip
-    if state.noclip then
-        if state.noclipConn then state.noclipConn:Disconnect() end
-        state.noclipConn = RunService.Stepped:Connect(function()
-            if not state.noclip then return end
-            local c = lp.Character
-            if c then for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end end
-        end)
-        notify("Noclip", "Enabled", 3, "success")
-    else
-        if state.noclipConn then state.noclipConn:Disconnect(); state.noclipConn = nil end
-        local c = lp.Character
-        if c then for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = true end end end
-        notify("Noclip", "Disabled", 3, "warning")
-    end
+reg("noclip", {"nc"}, "Toggle noclip", "", function()
+	state.noclip = not state.noclip
+	if state.noclip then
+		if state.noclipConn then state.noclipConn:Disconnect() end
+		state.noclipConn = RunService.Stepped:Connect(function()
+			if not state.noclip then return end
+			local c = getChar()
+			if not c then return end
+			for _, p in ipairs(c:GetDescendants()) do
+				if p:IsA("BasePart") then p.CanCollide = false end
+			end
+		end)
+		notify("Noclip", "ON", 3, "success")
+	else
+		if state.noclipConn then state.noclipConn:Disconnect(); state.noclipConn = nil end
+		local c = getChar()
+		if c then for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = true end end end
+		notify("Noclip", "OFF", 3, "warning")
+	end
 end)
 
-register("god", {"g"}, "Toggles godmode", "", function()
-    state.god = not state.god
-    if state.god then
-        if state.godConn then state.godConn:Disconnect() end
-        local h = lp.Character and lp.Character:FindFirstChild("Humanoid")
-        if h then h.MaxHealth = math.huge; h.Health = math.huge end
-        state.godConn = RunService.Heartbeat:Connect(function()
-            local hh = lp.Character and lp.Character:FindFirstChild("Humanoid")
-            if hh then hh.Health = math.huge end
-        end)
-        notify("God", "Enabled", 3, "success")
-    else
-        if state.godConn then state.godConn:Disconnect(); state.godConn = nil end
-        local h = lp.Character and lp.Character:FindFirstChild("Humanoid")
-        if h then h.MaxHealth = 100; h.Health = 100 end
-        notify("God", "Disabled", 3, "warning")
-    end
+reg("god", {"g"}, "Toggle godmode", "", function()
+	state.god = not state.god
+	if state.god then
+		if state.godConn then state.godConn:Disconnect() end
+		local h = getHum()
+		if h then h.MaxHealth = math.huge; h.Health = math.huge end
+		state.godConn = RunService.Heartbeat:Connect(function()
+			local hh = getHum()
+			if hh and hh.Health < math.huge then hh.Health = math.huge end
+		end)
+		notify("God", "ON", 3, "success")
+	else
+		if state.godConn then state.godConn:Disconnect(); state.godConn = nil end
+		local h = getHum()
+		if h then h.MaxHealth = 100; h.Health = 100 end
+		notify("God", "OFF", 3, "warning")
+	end
 end)
 
-register("invisible", {"invis"}, "Toggles invisibility", "", function()
-    state.invisible = not state.invisible
-    local c = lp.Character
-    if c then
-        for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.LocalTransparencyModifier = state.invisible and 1 or 0 end end
-    end
-    notify("Invisible", state.invisible and "ON" or "OFF", 3, state.invisible and "success" or "warning")
+reg("invisible", {"invis", "vis"}, "Toggle invisibility", "", function()
+	state.invisible = not state.invisible
+	local c = getChar()
+	if c then
+		for _, p in ipairs(c:GetDescendants()) do
+			if p:IsA("BasePart") then
+				p.LocalTransparencyModifier = state.invisible and 1 or 0
+			end
+		end
+	end
+	notify("Invisible", state.invisible and "ON" or "OFF", 3, state.invisible and "success" or "warning")
 end)
 
--- TELEPORT
-register("goto", {"to", "tp"}, "Teleport to player", "<target>", function(args)
-    local t = resolvePlayer(args[1])
-    if not t or t == "all" or t == "others" then notify("Error", "Player not found", 3, "error") return end
-    local r = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    local tr = t.Character and t.Character:FindFirstChild("HumanoidRootPart")
-    if r and tr then r.CFrame = tr.CFrame + Vector3.new(0, 3, 0); notify("Goto", t.Name, 3, "success") end
+reg("goto", {"to"}, "Teleport to player", "<target>", function(args)
+	local t = resolve(args[1])
+	if not t or typeof(t) ~= "Instance" then notify("Goto", "Player not found", 3, "error") return end
+	local r, tr = getHRP(), t.Character and t.Character:FindFirstChild("HumanoidRootPart")
+	if r and tr then r.CFrame = tr.CFrame + Vector3.new(0, 4, 0); notify("Goto", t.Name, 3, "success") end
 end)
 
-register("bring", {"br"}, "Bring player to you", "<target>", function(args)
-    local t = resolvePlayer(args[1])
-    if not t or typeof(t) ~= "Instance" or t == lp then notify("Error", "Invalid target", 3, "error") return end
-    local r = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    local tr = t.Character and t.Character:FindFirstChild("HumanoidRootPart")
-    if r and tr then tr.CFrame = r.CFrame + Vector3.new(0, 0, 3); notify("Bring", t.Name, 3, "success") end
+reg("bring", {"br"}, "Bring player to you", "<target>", function(args)
+	local t = resolve(args[1])
+	if not t or typeof(t) ~= "Instance" or t == lp then notify("Bring", "Invalid target", 3, "error") return end
+	local r, tr = getHRP(), t.Character and t.Character:FindFirstChild("HumanoidRootPart")
+	if r and tr then tr.CFrame = r.CFrame + Vector3.new(3, 0, 0); notify("Bring", t.Name, 3, "success") end
 end)
 
-register("fling", {"fling"}, "Fling player", "<target>", function(args)
-    local t = resolvePlayer(args[1])
-    if not t or typeof(t) ~= "Instance" or t == lp then return end
-    local tr = t.Character and t.Character:FindFirstChild("HumanoidRootPart")
-    if tr then
-        tr.Velocity = Vector3.new(math.random(-500, 500), math.random(500, 800), math.random(-500, 500))
-        notify("Fling", t.Name, 3, "success")
-    end
+reg("fling", {"fl2"}, "Fling player", "<target>", function(args)
+	local t = resolve(args[1])
+	if not t or typeof(t) ~= "Instance" or t == lp then return end
+	local tr = t.Character and t.Character:FindFirstChild("HumanoidRootPart")
+	if tr then
+		tr.AssemblyLinearVelocity = Vector3.new(math.random(-600,600), math.random(600,900), math.random(-600,600))
+		notify("Fling", t.Name, 3, "success")
+	end
 end)
 
--- ESP SYSTEM
+local accent = Color3.fromRGB(167, 139, 250)
+local accentHi = Color3.fromRGB(216, 180, 254)
+
 local function clearESP()
-    for _, v in ipairs(state.espObjs) do pcall(function() v:Destroy() end) end
-    state.espObjs = {}
-    state.espTargets = {}
+	for _, v in ipairs(state.espObjs) do pcall(function() v:Destroy() end) end
+	table.clear(state.espObjs)
 end
 
 local function applyESP(target)
-    if target == lp or not target.Character then return end
-    local head = target.Character:FindFirstChild("Head") or target.Character:FindFirstChild("HumanoidRootPart")
-    if not head then return end
-    
-    -- Check existing
-    for _, obj in ipairs(state.espObjs) do
-        if obj.Adornee and obj.Adornee:IsDescendantOf(target.Character) then return end
-    end
-    
-    local bb = Instance.new("BillboardGui")
-    bb.Name = "LavESP"
-    bb.Adornee = head
-    bb.AlwaysOnTop = true
-    bb.Size = UDim2.fromOffset(100, 30)
-    bb.StudsOffset = Vector3.new(0, 2.5, 0)
-    bb.ResetOnSpawn = false
-    bb.Parent = head
-    
-    local lbl = Instance.new("TextLabel", bb)
-    lbl.Size = UDim2.fromScale(1, 1)
-    lbl.BackgroundTransparency = 1
-    lbl.TextColor3 = C.accentHi
-    lbl.Font = Enum.Font.GothamBold
-    lbl.TextSize = 11
-    lbl.Text = target.Name
-    
-    local hl = Instance.new("Highlight", target.Character)
-    hl.Name = "LavHL"
-    hl.FillTransparency = 1
-    hl.OutlineColor = C.accent
-    hl.OutlineTransparency = 0
-    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    
-    table.insert(state.espObjs, bb)
-    table.insert(state.espObjs, hl)
-    table.insert(state.espTargets, target)
+	if target == lp or not target.Character then return end
+	local head = target.Character:FindFirstChild("Head") or target.Character:FindFirstChild("HumanoidRootPart")
+	if not head then return end
+	if head:FindFirstChild("LavESP") then return end
+
+	local bb = Instance.new("BillboardGui")
+	bb.Name = "LavESP"
+	bb.Adornee = head
+	bb.AlwaysOnTop = true
+	bb.Size = UDim2.fromOffset(110, 34)
+	bb.StudsOffset = Vector3.new(0, 3, 0)
+	bb.ResetOnSpawn = false
+	bb.Parent = head
+
+	local lbl = Instance.new("TextLabel", bb)
+	lbl.Size = UDim2.fromScale(1, 0.55)
+	lbl.BackgroundTransparency = 1
+	lbl.TextColor3 = accentHi
+	lbl.Font = Enum.Font.GothamBold
+	lbl.TextSize = 12
+	lbl.Text = target.Name
+
+	local dist = Instance.new("TextLabel", bb)
+	dist.Size = UDim2.fromScale(1, 0.45)
+	dist.Position = UDim2.fromScale(0, 0.55)
+	dist.BackgroundTransparency = 1
+	dist.TextColor3 = Color3.fromRGB(180, 170, 220)
+	dist.Font = Enum.Font.Gotham
+	dist.TextSize = 9
+	dist.Text = ""
+
+	local hl = Instance.new("Highlight", target.Character)
+	hl.Name = "LavHL"
+	hl.FillTransparency = 1
+	hl.OutlineColor = accent
+	hl.OutlineTransparency = 0
+	hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+
+	local distConn; distConn = RunService.Heartbeat:Connect(function()
+		if not bb.Parent or not getHRP() then distConn:Disconnect() return end
+		local tr = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+		if tr then
+			dist.Text = math.floor((getHRP().Position - tr.Position).Magnitude) .. "m"
+		end
+	end)
+
+	table.insert(state.espObjs, bb)
+	table.insert(state.espObjs, hl)
 end
 
-register("esp", {"wh", "wallhack"}, "ESP toggle/target", "[all/others/me/player]", function(args)
-    if not args[1] then
-        state.esp = not state.esp
-        if state.esp then
-            for _, p in ipairs(Players:GetPlayers()) do if p ~= lp then applyESP(p) end end
-            notify("ESP", "All players", 3, "success")
-        else
-            clearESP()
-            notify("ESP", "Cleared", 3, "warning")
-        end
-    else
-        local t = resolvePlayer(args[1])
-        if t == "all" then
-            for _, p in ipairs(Players:GetPlayers()) do if p ~= lp then applyESP(p) end end
-            notify("ESP", "All", 3, "success")
-        elseif t == "others" then
-            for _, p in ipairs(Players:GetPlayers()) do if p ~= lp then applyESP(p) end end
-            notify("ESP", "Others", 3, "success")
-        elseif t and typeof(t) == "Instance" then
-            applyESP(t)
-            notify("ESP", t.Name, 3, "success")
-        end
-    end
+reg("esp", {"wh"}, "Toggle ESP", "[target]", function(args)
+	if args[1] then
+		local t = resolve(args[1])
+		if t == "all" or t == "others" then
+			for _, p in ipairs(Players:GetPlayers()) do if p ~= lp then applyESP(p) end end
+			notify("ESP", "All players", 3, "success")
+		elseif t and typeof(t) == "Instance" then
+			applyESP(t); notify("ESP", t.Name, 3, "success")
+		end
+		return
+	end
+	state.esp = not state.esp
+	if state.esp then
+		for _, p in ipairs(Players:GetPlayers()) do if p ~= lp then applyESP(p) end end
+		notify("ESP", "ON", 3, "success")
+	else
+		clearESP(); notify("ESP", "OFF", 3, "warning")
+	end
 end)
 
-register("unesp", {"noesp"}, "Remove ESP", "[all/player]", function(args)
-    if not args[1] or args[1] == "all" then
-        clearESP()
-        notify("ESP", "Cleared all", 3, "warning")
-    else
-        local t = resolvePlayer(args[1])
-        if t and typeof(t) == "Instance" then
-            for i = #state.espObjs, 1, -1 do
-                local obj = state.espObjs[i]
-                if obj.Adornee and obj.Adornee:IsDescendantOf(t.Character) then
-                    pcall(function() obj:Destroy() end)
-                    table.remove(state.espObjs, i)
-                end
-            end
-            notify("ESP", "Removed " .. t.Name, 3, "warning")
-        end
-    end
+reg("unesp", {"noesp"}, "Remove ESP", "[target]", function(args)
+	if not args[1] or args[1] == "all" then
+		clearESP(); state.esp = false
+		notify("ESP", "Cleared", 3, "warning")
+	else
+		local t = resolve(args[1])
+		if t and t.Character then
+			for i = #state.espObjs, 1, -1 do
+				local obj = state.espObjs[i]
+				local ok = pcall(function()
+					if obj:IsDescendantOf(t.Character) or (obj.Adornee and obj.Adornee:IsDescendantOf(t.Character)) then
+						obj:Destroy(); table.remove(state.espObjs, i)
+					end
+				end)
+			end
+			notify("ESP", "Removed " .. t.Name, 3, "warning")
+		end
+	end
 end)
 
-register("chams", {"cham"}, "Toggles chams", "", function()
-    state.chams = not state.chams
-    if state.chams then
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= lp and p.Character then
-                local hl = Instance.new("Highlight", p.Character)
-                hl.Name = "LavCham"
-                hl.FillColor = Color3.fromRGB(109, 73, 212)
-                hl.FillTransparency = 0.6
-                hl.OutlineColor = C.accentHi
-                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                table.insert(state.chamObjs, hl)
-            end
-        end
-        notify("Chams", "ON", 3, "success")
-    else
-        for _, v in ipairs(state.chamObjs) do pcall(function() v:Destroy() end) end
-        state.chamObjs = {}
-        notify("Chams", "OFF", 3, "warning")
-    end
+reg("chams", {"cham"}, "Toggle chams", "", function()
+	state.chams = not state.chams
+	if state.chams then
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p ~= lp and p.Character and not p.Character:FindFirstChild("LavCham") then
+				local hl = Instance.new("Highlight", p.Character)
+				hl.Name = "LavCham"
+				hl.FillColor = Color3.fromRGB(109, 73, 212)
+				hl.FillTransparency = 0.55
+				hl.OutlineColor = accentHi
+				hl.OutlineTransparency = 0.2
+				hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+				table.insert(state.chamObjs, hl)
+			end
+		end
+		notify("Chams", "ON", 3, "success")
+	else
+		for _, v in ipairs(state.chamObjs) do pcall(function() v:Destroy() end) end
+		table.clear(state.chamObjs)
+		notify("Chams", "OFF", 3, "warning")
+	end
 end)
 
-register("tracers", {"tr"}, "Toggles tracers", "", function()
-    state.tracers = not state.tracers
-    if not state.tracers then
-        for _, v in ipairs(state.traceObjs) do pcall(function() v.line:Remove() end) end
-        state.traceObjs = {}
-        notify("Tracers", "OFF", 3, "warning")
-    else
-        notify("Tracers", "ON", 3, "success")
-    end
+reg("tracers", {"tr"}, "Toggle tracers", "", function()
+	state.tracers = not state.tracers
+	if not state.tracers then
+		for _, t in ipairs(state.traceObjs) do
+			pcall(function() t.line.Visible = false; t.line:Remove() end)
+		end
+		table.clear(state.traceObjs)
+		notify("Tracers", "OFF", 3, "warning")
+	else
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p ~= lp and p.Character then
+				local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+				if hrp then
+					local line = Drawing.new("Line")
+					line.Thickness = 1.5
+					line.Color = accent
+					line.Transparency = 0.3
+					line.Visible = true
+					table.insert(state.traceObjs, {target = hrp, line = line, player = p})
+				end
+			end
+		end
+		notify("Tracers", "ON · " .. #state.traceObjs, 3, "success")
+	end
 end)
 
--- SERVER
-register("rejoin", {"rj"}, "Rejoin server", "", function()
-    notify("Rejoin", "...", 3, "warning")
-    TeleportService:Teleport(game.PlaceId, lp)
+reg("rejoin", {"rj"}, "Rejoin server", "", function()
+	notify("Rejoin", "Rejoining...", 2, "warning")
+	task.delay(0.5, function() TeleportService:Teleport(game.PlaceId, lp) end)
 end)
 
-register("serverhop", {"sh", "hop", "shop"}, "Server hop", "", function()
-    notify("ServerHop", "Finding...", 3, "warning")
-    pcall(function()
-        local servers = HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
-        for _, s in ipairs(servers.data) do
-            if s.playing < s.maxPlayers and s.id ~= game.JobId then
-                TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id, lp)
-                return
-            end
-        end
-    end)
+reg("serverhop", {"sh", "hop"}, "Find new server", "", function()
+	notify("ServerHop", "Searching...", 3, "warning")
+	task.spawn(function()
+		local ok, res = pcall(function()
+			return HttpService:JSONDecode(game:HttpGet(
+				"https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+			))
+		end)
+		if not ok or not res or not res.data then notify("ServerHop", "Failed", 3, "error") return end
+		for _, s in ipairs(res.data) do
+			if s.playing < s.maxPlayers and s.id ~= game.JobId then
+				TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id, lp)
+				return
+			end
+		end
+		notify("ServerHop", "No servers found", 3, "error")
+	end)
 end)
 
-register("serverid", {"jobid", "sid"}, "Copy JobId", "", function()
-    setclipboard(game.JobId)
-    notify("JobId", "Copied!", 3, "success")
+reg("serverid", {"sid", "jobid"}, "Copy server ID", "", function()
+	pcall(function() setclipboard(game.JobId) end)
+	notify("ServerID", "Copied!", 3, "success")
 end)
 
--- UTILITY
-register("kill", {"die", "reset"}, "Reset character", "", function()
-    local h = lp.Character and lp.Character:FindFirstChild("Humanoid")
-    if h then h.Health = 0 end
+reg("kill", {"die", "reset"}, "Reset character", "", function()
+	local h = getHum()
+	if h then h.Health = 0 end
 end)
 
-register("grav", {"gravity"}, "Set gravity", "<num>", function(args)
-    local n = tonumber(args[1])
-    if n then workspace.Gravity = n; notify("Gravity", tostring(n), 3, "success") end
+reg("grav", {"gravity"}, "Set gravity", "<num>", function(args)
+	local n = tonumber(args[1])
+	if n then workspace.Gravity = n; notify("Gravity", tostring(n), 3, "success") end
 end)
 
-register("time", {"clock"}, "Set time", "<0-24>", function(args)
-    local n = tonumber(args[1])
-    if n then Lighting.ClockTime = n; notify("Time", tostring(n), 3, "success") end
+reg("time", {"clock"}, "Set lighting time", "<0-24>", function(args)
+	local n = tonumber(args[1])
+	if n then Lighting.ClockTime = n; notify("Time", tostring(n), 3, "success") end
 end)
 
-register("clear", {"cls"}, "Clear all visuals", "", function()
-    clearESP()
-    for _, v in ipairs(state.chamObjs) do pcall(function() v:Destroy() end) end
-    state.chamObjs = {}
-    for _, v in ipairs(state.traceObjs) do pcall(function() v.line:Remove() end) end
-    state.traceObjs = {}
-    state.esp = false; state.chams = false; state.tracers = false
-    notify("Clear", "All visuals removed", 3, "success")
+reg("clear", {"cls"}, "Clear all visuals", "", function()
+	clearESP()
+	for _, v in ipairs(state.chamObjs) do pcall(function() v:Destroy() end) end
+	table.clear(state.chamObjs)
+	for _, t in ipairs(state.traceObjs) do pcall(function() t.line.Visible = false; t.line:Remove() end) end
+	table.clear(state.traceObjs)
+	state.esp = false; state.chams = false; state.tracers = false
+	notify("Clear", "All visuals removed", 3, "success")
 end)
 
-register("cmds", {"commands", "help"}, "Show commands", "", function()
-    notify("Commands", "Check GUI or type any command", 3, "info")
+reg("prefix", {}, "Change prefix", "<char>", function(args)
+	if args[1] and #args[1] == 1 then
+		state.prefix = args[1]
+		notify("Prefix", "→ " .. args[1], 3, "success")
+	end
 end)
 
-register("prefix", {}, "Change prefix", "<new>", function(args)
-    if args[1] and #args[1] == 1 then
-        state.prefix = args[1]
-        notify("Prefix", "Changed to " .. args[1], 3, "success")
-    end
+reg("cmds", {"help", "commands"}, "List commands", "", function()
+	if getgenv()._lav_show_cmds then getgenv()._lav_show_cmds() end
 end)
 
--- Export
+lp.CharacterAdded:Connect(function()
+	task.wait(1.5)
+	if state.fly then
+		state.fly = false
+		task.spawn(function() CMDS["fly"].fn({}) end)
+	end
+	if state.noclip then
+		state.noclip = false
+		task.spawn(function() CMDS["noclip"].fn({}) end)
+	end
+	if state.god then
+		local h = getHum()
+		if h then h.MaxHealth = math.huge; h.Health = math.huge end
+	end
+	if state.invisible then
+		state.invisible = false
+		task.spawn(function() CMDS["invisible"].fn({}) end)
+	end
+	if state.esp then
+		task.wait(0.5)
+		for _, p in ipairs(Players:GetPlayers()) do if p ~= lp then applyESP(p) end end
+	end
+end)
+
+Players.PlayerAdded:Connect(function(p)
+	p.CharacterAdded:Connect(function()
+		task.wait(1)
+		if state.esp then applyESP(p) end
+		if state.chams and p.Character then
+			local hl = Instance.new("Highlight", p.Character)
+			hl.Name = "LavCham"
+			hl.FillColor = Color3.fromRGB(109, 73, 212)
+			hl.FillTransparency = 0.55
+			hl.OutlineColor = accentHi
+			hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+			table.insert(state.chamObjs, hl)
+		end
+	end)
+end)
+
 getgenv()._lav_cmds = CMDS
 getgenv()._lav_run = function(input)
-    input = input:lower()
-    local parts = {}
-    for w in input:gmatch("%S+") do table.insert(parts, w) end
-    if #parts == 0 then return end
-    
-    local cmdName = table.remove(parts, 1)
-    local cmd = CMDS[cmdName]
-    
-    if cmd then
-        task.spawn(cmd.fn, parts)
-    else
-        notify("Error", "Unknown: " .. cmdName, 3, "error")
-    end
+	if not input or input == "" then return end
+	local parts = {}
+	for w in input:gmatch("%S+") do table.insert(parts, w) end
+	local name = table.remove(parts, 1):lower()
+	local cmd = CMDS[name]
+	if cmd then
+		task.spawn(cmd.fn, parts)
+	else
+		notify("Unknown", name, 2, "error")
+	end
 end
-
-print("Lavender Commands Loaded - " .. #CMDS .. " commands")
