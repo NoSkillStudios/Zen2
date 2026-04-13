@@ -17,8 +17,15 @@ local CMDS   = getgenv()._lav_cmds
 local runCmd = getgenv()._lav_run
 local state  = getgenv()._lav_state or {prefix = ";"}
 
-local function tw(obj, t, props)
-	TweenServ:Create(obj, TweenInfo.new(t, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play()
+-- FIX: tw function now handles both number and TweenInfo
+local function tw(obj, timeOrTweenInfo, props)
+	local tweenInfo
+	if typeof(timeOrTweenInfo) == "number" then
+		tweenInfo = TweenInfo.new(timeOrTweenInfo, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+	else
+		tweenInfo = timeOrTweenInfo -- It's already a TweenInfo
+	end
+	TweenServ:Create(obj, tweenInfo, props):Play()
 end
 
 local function mk(cls, props, parent)
@@ -415,29 +422,27 @@ local togBtn = mk("TextButton", {
 	TextColor3 = C.MUTED,
 	AutoButtonColor = false,
 	BorderSizePixel = 0,
-	ZIndex = 10, -- Ensure it's clickable
+	ZIndex = 10,
 }, bar)
 corner(6, togBtn)
 stroke(1, C.BDR, 0, togBtn)
 
--- FIX: Proper toggle function
+-- FIX: Proper toggle function using TI (TweenInfo object) correctly
 local function togglePanel()
 	isOpen = not isOpen
 	if isOpen then
-		-- OPEN: Extend anchor and show panel
+		-- OPEN
 		togBtn.Text = "close"
 		tw(togBtn, 0.15, {TextColor3 = C.TEXT})
 		
-		-- First resize anchor to fit panel
 		anchor.Size = UDim2.new(0, BAR_W, 0, BAR_H + PAN_H + 5)
-		-- Then animate panel in
 		tw(panel, TI, {Size = UDim2.new(1, 0, 0, PAN_H), BackgroundTransparency = 0})
 		
 		if activeTab and tabs[activeTab] then 
 			tabs[activeTab].Visible = true 
 		end
 	else
-		-- CLOSE: Hide panel then shrink anchor
+		-- CLOSE
 		togBtn.Text = "open"
 		tw(togBtn, 0.15, {TextColor3 = C.MUTED})
 		
@@ -481,7 +486,24 @@ switchTab("Commands")
 local notifStack = {}
 local notifHeight = 60
 local notifGap = 8
-local baseY = -88 -- Starting Y position (from bottom)
+local baseY = -88
+
+local function restackNotifications()
+	local currentStack = {}
+	for k, v in pairs(notifStack) do
+		table.insert(currentStack, v)
+	end
+	
+	table.sort(currentStack, function(a, b) 
+		return a.frame.AbsolutePosition.Y > b.frame.AbsolutePosition.Y 
+	end)
+	
+	for i, entry in ipairs(currentStack) do
+		local newY = baseY - ((i-1) * (notifHeight + notifGap))
+		entry.targetY = newY
+		tw(entry.frame, 0.2, {Position = UDim2.new(1, -296, 1, newY)})
+	end
+end
 
 local function notify(title, body, ntype, dur)
 	dur = dur or 4
@@ -495,32 +517,30 @@ local function notify(title, body, ntype, dur)
 	}
 	local accent = typeCol[ntype] or typeCol.info
 
-	-- If notification exists, update count
 	if notifStack[key] then
 		local n = notifStack[key]
 		n.count += 1
 		n.cntLbl.Text = n.count .. "×"
 		n.cntLbl.Visible = true
 		
-		-- Cancel old close timer
 		if n.thread then task.cancel(n.thread) end
 		
-		-- Reset timer
 		n.thread = task.delay(dur, function()
-			-- Animate out
 			tw(n.frame, 0.2, {Position = UDim2.new(1, 20, 1, n.targetY), BackgroundTransparency = 1})
 			task.wait(0.22)
 			n.frame:Destroy()
 			notifStack[key] = nil
-			-- Re-stack remaining notifications
 			restackNotifications()
 		end)
 		return
 	end
 
-	-- Create new notification
+	local stackPos = 0
+	for k, v in pairs(notifStack) do stackPos += 1 end
+	local targetY = baseY - (stackPos * (notifHeight + notifGap))
+
 	local nf = mk("Frame", {
-		Position = UDim2.new(1, 20, 1, baseY), -- Start off-screen right
+		Position = UDim2.new(1, 20, 1, baseY),
 		Size = UDim2.new(0, 280, 0, 54),
 		BackgroundColor3 = C.BG,
 		BackgroundTransparency = 0,
@@ -530,7 +550,6 @@ local function notify(title, body, ntype, dur)
 	corner(9, nf)
 	stroke(1, C.BDR, 0, nf)
 
-	-- Accent bar
 	mk("Frame", {
 		Size = UDim2.new(0, 2, 1, 0),
 		BackgroundColor3 = accent,
@@ -538,7 +557,6 @@ local function notify(title, body, ntype, dur)
 		ZIndex = 11,
 	}, nf)
 
-	-- Title
 	mk("TextLabel", {
 		Position = UDim2.new(0, 12, 0, 8),
 		Size = UDim2.new(1, -60, 0, 18),
@@ -551,7 +569,6 @@ local function notify(title, body, ntype, dur)
 		ZIndex = 11,
 	}, nf)
 
-	-- Body
 	mk("TextLabel", {
 		Position = UDim2.new(0, 12, 0, 28),
 		Size = UDim2.new(1, -60, 0, 16),
@@ -564,7 +581,6 @@ local function notify(title, body, ntype, dur)
 		ZIndex = 11,
 	}, nf)
 
-	-- Count badge (2x, 3x, etc)
 	local cntLbl = mk("TextLabel", {
 		Position = UDim2.new(1, -46, 0.5, -10),
 		Size = UDim2.new(0, 32, 0, 20),
@@ -579,12 +595,6 @@ local function notify(title, body, ntype, dur)
 	}, nf)
 	corner(5, cntLbl)
 
-	-- Calculate position based on stack
-	local stackPos = 0
-	for k, v in pairs(notifStack) do stackPos += 1 end
-	local targetY = baseY - (stackPos * (notifHeight + notifGap))
-
-	-- Store entry
 	local entry = {
 		frame = nf, 
 		count = 1, 
@@ -595,10 +605,8 @@ local function notify(title, body, ntype, dur)
 	}
 	notifStack[key] = entry
 
-	-- Animate in to calculated position
 	tw(nf, 0.24, {Position = UDim2.new(1, -296, 1, targetY)})
 
-	-- Set close timer
 	entry.thread = task.delay(dur, function()
 		tw(nf, 0.2, {Position = UDim2.new(1, 20, 1, targetY), BackgroundTransparency = 1})
 		task.wait(0.22)
@@ -606,24 +614,6 @@ local function notify(title, body, ntype, dur)
 		notifStack[key] = nil
 		restackNotifications()
 	end)
-end
-
--- Function to restack notifications when one closes
-function restackNotifications()
-	local currentStack = {}
-	for k, v in pairs(notifStack) do
-		table.insert(currentStack, v)
-	end
-	
-	-- Sort by creation time (approximated by frame creation)
-	table.sort(currentStack, function(a, b) return a.frame.AbsolutePosition.Y > b.frame.AbsolutePosition.Y end)
-	
-	-- Re-position
-	for i, entry in ipairs(currentStack) do
-		local newY = baseY - ((i-1) * (notifHeight + notifGap))
-		entry.targetY = newY
-		tw(entry.frame, 0.2, {Position = UDim2.new(1, -296, 1, newY)})
-	end
 end
 
 getgenv()._lav_notify = notify
