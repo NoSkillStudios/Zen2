@@ -1,562 +1,514 @@
 if getgenv()._lav_key ~= "LavenderAdmin_Secure_2025" then return end
 
-local Players = game:GetService("Players")
+local Players    = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local Stats = game:GetService("Stats")
-local lp = Players.LocalPlayer
-local pg = lp:WaitForChild("PlayerGui")
+local TweenServ  = game:GetService("TweenService")
+local UIS        = game:GetService("UserInputService")
+local Stats      = game:GetService("Stats")
+local lp         = Players.LocalPlayer
+local pg         = lp:WaitForChild("PlayerGui")
 
--- Cleanup existing
-local existing = pg:FindFirstChild("LavenderAdmin")
-if existing then existing:Destroy() end
+do local e = pg:FindFirstChild("LavenderAdmin") if e then e:Destroy() end end
 
--- Wait for commands to load
 local retries = 0
-while not getgenv()._lav_cmds and retries < 100 do
-	task.wait(0.1)
-	retries += 1
-end
+while not getgenv()._lav_cmds and retries < 100 do task.wait(0.1); retries += 1 end
 if not getgenv()._lav_cmds then return end
 
-local CMDS = getgenv()._lav_cmds
+local CMDS   = getgenv()._lav_cmds
 local runCmd = getgenv()._lav_run
-local state = getgenv()._lav_state or {}
+local state  = getgenv()._lav_state or {}
 
--- Utility functions
-local function tween(obj, time, props)
-	TweenService:Create(obj, TweenInfo.new(time, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play()
+local function tw(obj, t, props)
+	TweenServ:Create(obj, TweenInfo.new(t, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play()
 end
 
-local function create(class, props, parent)
-	local obj = Instance.new(class)
-	if props then
-		for k, v in pairs(props) do
-			obj[k] = v
-		end
-	end
-	if parent then obj.Parent = parent end
-	return obj
+local function mk(cls, props, parent)
+	local i = Instance.new(cls)
+	for k, v in props do i[k] = v end
+	if parent then i.Parent = parent end
+	return i
 end
+local function corner(r, p) mk("UICorner", {CornerRadius = UDim.new(0, r)}, p) end
+local function vstroke(t, c, tr, p) mk("UIStroke", {Thickness=t, Color=c, Transparency=tr, ApplyStrokeMode=Enum.ApplyStrokeMode.Border, LineJoinMode=Enum.LineJoinMode.Round}, p) end
 
-local function corner(radius, parent)
-	return create("UICorner", {CornerRadius = UDim.new(0, radius)}, parent)
-end
-
--- Modern Color Palette (Dark Professional)
-local Colors = {
-	Background = Color3.fromRGB(13, 13, 15),
-	Surface = Color3.fromRGB(22, 22, 26),
-	SurfaceHover = Color3.fromRGB(30, 30, 36),
-	Border = Color3.fromRGB(40, 40, 48),
-	Accent = Color3.fromRGB(88, 101, 242), -- Discord blurple style
-	AccentLight = Color3.fromRGB(120, 133, 255),
-	Text = Color3.fromRGB(255, 255, 255),
-	TextMuted = Color3.fromRGB(150, 150, 160),
-	Success = Color3.fromRGB(59, 165, 93),
-	Warning = Color3.fromRGB(250, 168, 26),
-	Error = Color3.fromRGB(237, 66, 69)
+local C = {
+	BG      = Color3.fromRGB(10, 8, 20),
+	SURF    = Color3.fromRGB(16, 13, 28),
+	SURFH   = Color3.fromRGB(24, 20, 42),
+	ACCENT  = Color3.fromRGB(165, 125, 255),
+	ACCD    = Color3.fromRGB(58, 40, 105),
+	TEXT    = Color3.fromRGB(232, 220, 255),
+	MUTED   = Color3.fromRGB(130, 115, 165),
+	GREEN   = Color3.fromRGB(88, 210, 120),
+	YELLOW  = Color3.fromRGB(240, 195, 75),
+	RED     = Color3.fromRGB(235, 80, 80),
+	BLUE    = Color3.fromRGB(88, 170, 245),
 }
 
--- Main GUI
-local gui = create("ScreenGui", {
+local BAR_H  = 52
+local BAR_W  = 620
+local PAN_H  = 260
+local TI     = TweenInfo.new(0.26, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+
+local gui = mk("ScreenGui", {
 	Name = "LavenderAdmin",
 	ResetOnSpawn = false,
 	IgnoreGuiInset = true,
-	DisplayOrder = 999
+	DisplayOrder = 999,
 }, pg)
 
--- Main Frame
-local mainFrame = create("Frame", {
-	Size = UDim2.new(0, 650, 0, 450),
-	Position = UDim2.new(0.5, -325, 0.5, -225),
-	BackgroundColor3 = Colors.Background,
+local anchor = mk("Frame", {
+	Name = "Anchor",
+	Position = UDim2.new(0.5, -(BAR_W / 2), 0, 18),
+	Size = UDim2.new(0, BAR_W, 0, BAR_H),
+	BackgroundTransparency = 1,
+	ClipsDescendants = false,
 	BorderSizePixel = 0,
-	ClipsDescendants = true
 }, gui)
 
-corner(12, mainFrame)
-create("UIStroke", {Color = Colors.Border, Thickness = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, mainFrame)
+local bar = mk("Frame", {
+	Size = UDim2.new(1, 0, 0, BAR_H),
+	BackgroundColor3 = C.BG,
+	BackgroundTransparency = 0.04,
+	BorderSizePixel = 0,
+	ClipsDescendants = false,
+}, anchor)
+corner(26, bar)
+vstroke(1, Color3.fromRGB(90, 60, 175), 0.65, bar)
 
--- Shadow effect
-local shadow = create("ImageLabel", {
-	Size = UDim2.new(1, 40, 1, 40),
-	Position = UDim2.new(0, -20, 0, -20),
-	BackgroundTransparency = 1,
-	Image = "rbxassetid://6015897843", -- shadow asset
-	ImageColor3 = Color3.new(0, 0, 0),
-	ImageTransparency = 0.6,
-	ScaleType = Enum.ScaleType.Slice,
-	SliceCenter = Rect.new(49, 49, 450, 450),
-	ZIndex = -1
-}, mainFrame)
-
--- Title Bar
-local titleBar = create("Frame", {
-	Size = UDim2.new(1, 0, 0, 50),
-	BackgroundColor3 = Colors.Surface,
-	BorderSizePixel = 0
-}, mainFrame)
-
-create("Frame", {
-	Size = UDim2.new(1, 0, 0, 1),
-	Position = UDim2.new(0, 0, 1, 0),
-	BackgroundColor3 = Colors.Border,
-	BorderSizePixel = 0
-}, titleBar)
-
--- Logo/Title
-local logo = create("TextLabel", {
-	Size = UDim2.new(0, 200, 1, 0),
-	Position = UDim2.new(0, 20, 0, 0),
-	BackgroundTransparency = 1,
-	Text = "LAVENDER",
-	TextColor3 = Colors.Accent,
-	TextSize = 22,
-	Font = Enum.Font.GothamBlack,
-	TextXAlignment = Enum.TextXAlignment.Left
-}, titleBar)
-
-create("TextLabel", {
-	Size = UDim2.new(0, 50, 1, 0),
-	Position = UDim2.new(0, 138, 0, 0),
-	BackgroundTransparency = 1,
-	Text = "ADMIN",
-	TextColor3 = Colors.TextMuted,
-	TextSize = 22,
-	Font = Enum.Font.GothamBold,
-	TextXAlignment = Enum.TextXAlignment.Left
-}, titleBar)
-
--- Stats in title bar
-local fpsLabel = create("TextLabel", {
-	Size = UDim2.new(0, 80, 0, 20),
-	Position = UDim2.new(1, -280, 0.5, -10),
-	BackgroundTransparency = 1,
-	Text = "60 FPS",
-	TextColor3 = Colors.Success,
-	TextSize = 13,
-	Font = Enum.Font.GothamBold
-}, titleBar)
-
-local pingLabel = create("TextLabel", {
-	Size = UDim2.new(0, 60, 0, 20),
-	Position = UDim2.new(1, -190, 0.5, -10),
-	BackgroundTransparency = 1,
-	Text = "20 ms",
-	TextColor3 = Colors.TextMuted,
-	TextSize = 13,
-	Font = Enum.Font.GothamSemibold
-}, titleBar)
-
--- Close button
-local closeBtn = create("TextButton", {
-	Size = UDim2.new(0, 30, 0, 30),
-	Position = UDim2.new(1, -40, 0.5, -15),
-	BackgroundColor3 = Colors.Error,
-	BackgroundTransparency = 0.8,
-	Text = "×",
-	TextColor3 = Colors.Text,
-	TextSize = 20,
-	Font = Enum.Font.GothamBold,
-	AutoButtonColor = false
-}, titleBar)
-
-corner(8, closeBtn)
-
-closeBtn.MouseEnter:Connect(function()
-	tween(closeBtn, 0.2, {BackgroundTransparency = 0})
-end)
-
-closeBtn.MouseLeave:Connect(function()
-	tween(closeBtn, 0.2, {BackgroundTransparency = 0.8})
-end)
-
-closeBtn.MouseButton1Click:Connect(function()
-	gui:Destroy()
-end)
-
--- Minimize button
-local minBtn = create("TextButton", {
-	Size = UDim2.new(0, 30, 0, 30),
-	Position = UDim2.new(1, -80, 0.5, -15),
-	BackgroundColor3 = Colors.SurfaceHover,
-	BackgroundTransparency = 0.8,
-	Text = "−",
-	TextColor3 = Colors.Text,
-	TextSize = 20,
-	Font = Enum.Font.GothamBold,
-	AutoButtonColor = false
-}, titleBar)
-
-corner(8, minBtn)
-
--- Content Area
-local contentFrame = create("Frame", {
-	Size = UDim2.new(1, -40, 1, -130),
-	Position = UDim2.new(0, 20, 0, 70),
-	BackgroundTransparency = 1
-}, mainFrame)
-
--- Command Input Box
-local inputFrame = create("Frame", {
-	Size = UDim2.new(1, 0, 0, 45),
-	BackgroundColor3 = Colors.Surface,
-	BorderSizePixel = 0
-}, contentFrame)
-
-corner(8, inputFrame)
-create("UIStroke", {Color = Colors.Border, Thickness = 1}, inputFrame)
-
-local cmdInput = create("TextBox", {
-	Size = UDim2.new(1, -120, 1, 0),
-	Position = UDim2.new(0, 15, 0, 0),
-	BackgroundTransparency = 1,
-	Text = "",
-	PlaceholderText = "Enter command... (e.g., fly, speed 100, kill)",
-	TextColor3 = Colors.Text,
-	PlaceholderColor3 = Colors.TextMuted,
-	TextSize = 15,
-	Font = Enum.Font.GothamSemibold,
-	ClearTextOnFocus = false
-}, inputFrame)
-
--- Execute button
-local execBtn = create("TextButton", {
-	Size = UDim2.new(0, 90, 0, 35),
-	Position = UDim2.new(1, -105, 0.5, -17.5),
-	BackgroundColor3 = Colors.Accent,
-	Text = "EXECUTE",
-	TextColor3 = Colors.Text,
-	TextSize = 13,
-	Font = Enum.Font.GothamBold,
-	AutoButtonColor = false
-}, inputFrame)
-
-corner(6, execBtn)
-
-execBtn.MouseEnter:Connect(function()
-	tween(execBtn, 0.2, {BackgroundColor3 = Colors.AccentLight})
-end)
-
-execBtn.MouseLeave:Connect(function()
-	tween(execBtn, 0.2, {BackgroundColor3 = Colors.Accent})
-end)
-
--- Command List Frame
-local listFrame = create("Frame", {
-	Size = UDim2.new(1, 0, 1, -60),
-	Position = UDim2.new(0, 0, 0, 55),
-	BackgroundColor3 = Colors.Surface,
-	BorderSizePixel = 0
-}, contentFrame)
-
-corner(8, listFrame)
-
--- Scroll Frame
-local scroll = create("ScrollingFrame", {
-	Size = UDim2.new(1, -20, 1, -20),
-	Position = UDim2.new(0, 10, 0, 10),
+local panel = mk("Frame", {
+	Position = UDim2.new(0, 0, 0, BAR_H + 6),
+	Size = UDim2.new(1, 0, 0, 0),
+	BackgroundColor3 = C.BG,
 	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
-	ScrollBarThickness = 6,
-	ScrollBarImageColor3 = Colors.Accent,
-	CanvasSize = UDim2.new(0, 0, 0, 0),
-	AutomaticCanvasSize = Enum.AutomaticSize.Y
-}, listFrame)
+	ClipsDescendants = true,
+}, anchor)
+corner(16, panel)
+vstroke(1, Color3.fromRGB(90, 60, 175), 0.72, panel)
 
-local listLayout = create("UIListLayout", {
-	Padding = UDim.new(0, 8),
-	SortOrder = Enum.SortOrder.LayoutOrder
-}, scroll)
-
-create("UIPadding", {PaddingTop = UDim.new(0, 5), PaddingBottom = UDim.new(0, 5)}, scroll)
-
--- Search functionality
-local searchBox = create("TextBox", {
-	Size = UDim2.new(1, 0, 0, 0),
+local tabCont = mk("Frame", {
+	Size = UDim2.new(1, -24, 1, -24),
+	Position = UDim2.new(0, 12, 0, 12),
 	BackgroundTransparency = 1,
-	Text = "",
-	PlaceholderText = "Search commands...",
-	TextColor3 = Colors.Text,
-	PlaceholderColor3 = Colors.TextMuted,
-	TextSize = 14,
-	Font = Enum.Font.Gotham,
-	ClearTextOnFocus = false
-}, nil) -- Will be placed in a search frame if needed
+	BorderSizePixel = 0,
+}, panel)
 
--- Create Command Row Function
-local commandRows = {}
-
-local function createCommandRow(name, cmdData, index)
-	local row = create("Frame", {
-		Size = UDim2.new(1, -10, 0, 50),
-		BackgroundColor3 = Colors.Background,
+local function div(parent)
+	mk("Frame", {
+		Size = UDim2.new(0, 1, 0, 28),
+		BackgroundColor3 = Color3.fromRGB(90, 60, 175),
+		BackgroundTransparency = 0.62,
 		BorderSizePixel = 0,
-		LayoutOrder = index
-	}, scroll)
-	
-	corner(6, row)
-	
-	-- Command Name
-	local nameLabel = create("TextLabel", {
-		Size = UDim2.new(0, 150, 1, 0),
-		Position = UDim2.new(0, 15, 0, 0),
+	}, parent)
+end
+
+local avWrap = mk("Frame", {
+	Position = UDim2.new(0, 6, 0.5, -20),
+	Size = UDim2.new(0, 40, 0, 40),
+	BackgroundColor3 = Color3.fromRGB(52, 32, 105),
+	BorderSizePixel = 0,
+}, bar)
+corner(20, avWrap)
+vstroke(1.5, C.ACCENT, 0.32, avWrap)
+
+local pfp = mk("ImageLabel", {
+	Size = UDim2.new(1, 0, 1, 0),
+	BackgroundTransparency = 1,
+	Image = "rbxthumb://type=AvatarHeadShot&id=" .. lp.UserId .. "&w=48&h=48",
+	ScaleType = Enum.ScaleType.Stretch,
+}, avWrap)
+corner(20, pfp)
+
+local statsLeft = mk("Frame", {
+	Position = UDim2.new(0, 54, 0, 0),
+	Size = UDim2.new(0, 110, 1, 0),
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+}, bar)
+
+local fpsDot = mk("Frame", {
+	Position = UDim2.new(0, 0, 0, 13),
+	Size = UDim2.new(0, 6, 0, 6),
+	BackgroundColor3 = C.GREEN,
+	BorderSizePixel = 0,
+}, statsLeft)
+corner(3, fpsDot)
+
+local fpsLbl = mk("TextLabel", {
+	Position = UDim2.new(0, 11, 0, 5),
+	Size = UDim2.new(0, 78, 0, 17),
+	BackgroundTransparency = 1,
+	Text = "60 FPS",
+	TextSize = 12,
+	Font = Enum.Font.GothamBold,
+	TextColor3 = C.TEXT,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextYAlignment = Enum.TextYAlignment.Center,
+}, statsLeft)
+
+local pingDot = mk("Frame", {
+	Position = UDim2.new(0, 0, 0, 31),
+	Size = UDim2.new(0, 6, 0, 6),
+	BackgroundColor3 = C.BLUE,
+	BorderSizePixel = 0,
+}, statsLeft)
+corner(3, pingDot)
+
+local pingLbl = mk("TextLabel", {
+	Position = UDim2.new(0, 11, 0, 24),
+	Size = UDim2.new(0, 78, 0, 15),
+	BackgroundTransparency = 1,
+	Text = "PING -- ms",
+	TextSize = 10,
+	Font = Enum.Font.GothamBold,
+	TextColor3 = C.MUTED,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextYAlignment = Enum.TextYAlignment.Center,
+}, statsLeft)
+
+local deltaDot = mk("Frame", {
+	Position = UDim2.new(0, 95, 0, 13),
+	Size = UDim2.new(0, 6, 0, 6),
+	BackgroundColor3 = C.ACCENT,
+	BorderSizePixel = 0,
+}, statsLeft)
+corner(3, deltaDot)
+
+mk("TextLabel", {
+	Position = UDim2.new(0, 106, 0, 5),
+	Size = UDim2.new(0, 50, 0, 17),
+	BackgroundTransparency = 1,
+	Text = "Delta",
+	TextSize = 11,
+	Font = Enum.Font.GothamBold,
+	TextColor3 = C.ACCENT,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextYAlignment = Enum.TextYAlignment.Center,
+}, statsLeft)
+
+mk("TextLabel", {
+	Position = UDim2.new(0.5, -60, 0, 0),
+	Size = UDim2.new(0, 120, 1, 0),
+	BackgroundTransparency = 1,
+	Text = "LavAdmin",
+	TextSize = 16,
+	Font = Enum.Font.GothamBlack,
+	TextColor3 = C.ACCENT,
+	TextXAlignment = Enum.TextXAlignment.Center,
+	TextYAlignment = Enum.TextYAlignment.Center,
+}, bar)
+
+local btnData = {
+	{name = "Commands", img = "rbxassetid://125186519787585"},
+	{name = "Settings",  img = "rbxassetid://126110596194847"},
+	{name = "Discord",   img = "rbxassetid://77339522563182"},
+	{name = "Respawn",   img = "rbxassetid://76473261378555"},
+}
+
+local iconRow = mk("Frame", {
+	Position = UDim2.new(1, -210, 0, 0),
+	Size = UDim2.new(0, 158, 1, 0),
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+}, bar)
+mk("UIListLayout", {
+	FillDirection = Enum.FillDirection.Horizontal,
+	HorizontalAlignment = Enum.HorizontalAlignment.Center,
+	VerticalAlignment = Enum.VerticalAlignment.Center,
+	Padding = UDim.new(0, 2),
+}, iconRow)
+
+local tabs, tabBtns = {}, {}
+local activeTab, isOpen = nil, false
+
+for _, d in btnData do
+	local btn = mk("ImageButton", {
+		Name = d.name,
+		Size = UDim2.new(0, 36, 0, 36),
 		BackgroundTransparency = 1,
-		Text = name:upper(),
-		TextColor3 = Colors.Accent,
-		TextSize = 14,
-		Font = Enum.Font.GothamBold,
-		TextXAlignment = Enum.TextXAlignment.Left
-	}, row)
-	
-	-- Description
-	local descLabel = create("TextLabel", {
-		Size = UDim2.new(1, -280, 1, 0),
-		Position = UDim2.new(0, 175, 0, 0),
-		BackgroundTransparency = 1,
-		Text = cmdData.desc or "No description",
-		TextColor3 = Colors.TextMuted,
-		TextSize = 12,
-		Font = Enum.Font.Gotham,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextTruncate = Enum.TextTruncate.AtEnd
-	}, row)
-	
-	-- Args format
-	if cmdData.argfmt and cmdData.argfmt ~= "" then
-		local argsLabel = create("TextLabel", {
-			Size = UDim2.new(0, 100, 0, 20),
-			Position = UDim2.new(0, 175, 0, 28),
+		BackgroundColor3 = Color3.fromRGB(90, 55, 165),
+		Image = d.img,
+		ScaleType = Enum.ScaleType.Fit,
+		ImageColor3 = C.MUTED,
+		AutoButtonColor = false,
+		BorderSizePixel = 0,
+	}, iconRow)
+	corner(18, btn)
+
+	if d.name ~= "Respawn" then
+		local pg2 = mk("Frame", {
+			Name = d.name .. "Page",
+			Size = UDim2.new(1, 0, 1, 0),
 			BackgroundTransparency = 1,
-			Text = cmdData.argfmt,
-			TextColor3 = Colors.AccentLight,
-			TextSize = 10,
+			Visible = false,
+			BorderSizePixel = 0,
+		}, tabCont)
+		mk("TextLabel", {
+			Size = UDim2.new(1, 0, 0, 28),
+			BackgroundTransparency = 1,
+			Text = d.name,
+			TextSize = 20,
+			Font = Enum.Font.GothamBlack,
+			TextColor3 = C.TEXT,
+			TextXAlignment = Enum.TextXAlignment.Left,
+		}, pg2)
+		mk("TextLabel", {
+			Position = UDim2.new(0, 0, 0, 36),
+			Size = UDim2.new(1, 0, 0, 180),
+			BackgroundTransparency = 1,
+			Text = d.name == "Commands" and "Available commands load here."
+				or d.name == "Settings" and "Configure preferences here."
+				or "discord.gg/lavadmin",
+			TextSize = 13,
 			Font = Enum.Font.Gotham,
-			TextXAlignment = Enum.TextXAlignment.Left
-		}, row)
+			TextColor3 = C.MUTED,
+			TextWrapped = true,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextYAlignment = Enum.TextYAlignment.Top,
+		}, pg2)
+		tabs[d.name] = {page = pg2, btn = btn}
 	end
-	
-	-- Run Button
-	local runBtn = create("TextButton", {
-		Size = UDim2.new(0, 70, 0, 32),
-		Position = UDim2.new(1, -85, 0.5, -16),
-		BackgroundColor3 = Colors.Success,
-		Text = "RUN",
-		TextColor3 = Colors.Text,
-		TextSize = 13,
-		Font = Enum.Font.GothamBold,
-		AutoButtonColor = false
-	}, row)
-	
-	corner(6, runBtn)
-	
-	-- Hover effects
-	row.MouseEnter:Connect(function()
-		tween(row, 0.2, {BackgroundColor3 = Colors.SurfaceHover})
-	end)
-	
-	row.MouseLeave:Connect(function()
-		tween(row, 0.2, {BackgroundColor3 = Colors.Background})
-	end)
-	
-	runBtn.MouseEnter:Connect(function()
-		tween(runBtn, 0.2, {BackgroundColor3 = Color3.fromRGB(80, 200, 120)})
-	end)
-	
-	runBtn.MouseLeave:Connect(function()
-		tween(runBtn, 0.2, {BackgroundColor3 = Colors.Success})
-	end)
-	
-	-- Click to copy to input
-	row.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 and input.Target ~= runBtn then
-			cmdInput.Text = state.prefix .. name .. " "
-			cmdInput:CaptureFocus()
+	tabBtns[d.name] = btn
+
+	btn.MouseEnter:Connect(function()
+		if activeTab ~= d.name then
+			tw(btn, 0.18, {BackgroundTransparency = 0.72, ImageColor3 = C.TEXT})
 		end
 	end)
-	
-	-- Run button click
-	runBtn.MouseButton1Click:Connect(function()
-		-- Visual feedback
-		tween(runBtn, 0.1, {Size = UDim2.new(0, 66, 0, 28), Position = UDim2.new(1, -83, 0.5, -14)})
-		task.wait(0.1)
-		tween(runBtn, 0.1, {Size = UDim2.new(0, 70, 0, 32), Position = UDim2.new(1, -85, 0.5, -16)})
-		
-		-- Execute
-		runCmd(name)
-		
-		-- Visual success indicator
-		local originalColor = runBtn.BackgroundColor3
-		runBtn.BackgroundColor3 = Colors.Accent
-		runBtn.Text = "✓"
-		task.wait(0.5)
-		runBtn.Text = "RUN"
-		runBtn.BackgroundColor3 = originalColor
-	end)
-	
-	table.insert(commandRows, {row = row, name = name, data = cmdData})
-	return row
-end
-
--- Populate command list
-local index = 1
-local seen = {}
-for name, cmd in pairs(CMDS) do
-	if cmd.name == name and not seen[cmd] then -- Avoid duplicates from aliases
-		seen[cmd] = true
-		createCommandRow(name, cmd, index)
-		index += 1
-	end
-end
-
--- Execute from input
-local function executeInput()
-	local text = cmdInput.Text
-	if text and text ~= "" then
-		-- Remove prefix if present
-		if text:sub(1, #state.prefix) == state.prefix then
-			text = text:sub(#state.prefix + 1)
+	btn.MouseLeave:Connect(function()
+		if activeTab ~= d.name then
+			tw(btn, 0.18, {BackgroundTransparency = 1, ImageColor3 = C.MUTED})
 		end
-		runCmd(text)
-		cmdInput.Text = ""
+	end)
+end
+
+local function switchTab(name)
+	if activeTab and tabs[activeTab] then
+		tabs[activeTab].page.Visible = false
+		tw(tabs[activeTab].btn, 0.18, {BackgroundTransparency = 1, ImageColor3 = C.MUTED})
+	end
+	activeTab = name
+	if tabs[name] then
+		tabs[name].page.Visible = true
+		tw(tabs[name].btn, 0.18, {BackgroundTransparency = 0.55, ImageColor3 = C.ACCENT})
 	end
 end
 
-execBtn.MouseButton1Click:Connect(executeInput)
-cmdInput.FocusLost:Connect(function(enterPressed)
-	if enterPressed then
-		executeInput()
-	end
-end)
-
--- Make frame draggable
-local dragging = false
-local dragStart = nil
-local startPos = nil
-
-titleBar.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		dragging = true
-		dragStart = input.Position
-		startPos = mainFrame.Position
-	end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-	if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-		local delta = input.Position - dragStart
-		mainFrame.Position = UDim2.new(
-			startPos.X.Scale, startPos.X.Offset + delta.X,
-			startPos.Y.Scale, startPos.Y.Offset + delta.Y
-		)
-	end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		dragging = false
-	end
-end)
-
--- Minimize functionality
-local minimized = false
-minBtn.MouseButton1Click:Connect(function()
-	minimized = not minimized
-	if minimized then
-		tween(mainFrame, 0.3, {Size = UDim2.new(0, 650, 0, 50)})
-		contentFrame.Visible = false
-		minBtn.Text = "+"
+local function togglePanel()
+	isOpen = not isOpen
+	if isOpen then
+		anchor.Size = UDim2.new(0, BAR_W, 0, BAR_H + PAN_H + 6)
+		tw(panel, TI, {Size = UDim2.new(1, 0, 0, PAN_H), BackgroundTransparency = 0.04})
 	else
-		tween(mainFrame, 0.3, {Size = UDim2.new(0, 650, 0, 450)})
-		contentFrame.Visible = true
-		minBtn.Text = "−"
-	end
-end)
-
--- FPS Counter
-local fpsBuffer = {}
-local fpsIndex = 1
-for i = 1, 30 do fpsBuffer[i] = 60 end
-local lastTime = tick()
-
-RunService.Heartbeat:Connect(function()
-	local now = tick()
-	local dt = now - lastTime
-	lastTime = now
-	
-	if dt > 0 then
-		local fps = 1 / dt
-		fpsBuffer[fpsIndex] = fps
-		fpsIndex = (fpsIndex % 30) + 1
-		
-		local avg = 0
-		for _, v in ipairs(fpsBuffer) do
-			avg = avg + v
-		end
-		avg = math.floor(avg / 30)
-		
-		fpsLabel.Text = avg .. " FPS"
-		fpsLabel.TextColor3 = avg >= 50 and Colors.Success or avg >= 30 and Colors.Warning or Colors.Error
-	end
-	
-	-- Update ping every second
-	if math.floor(now) ~= math.floor(now - dt) then
-		local success, ping = pcall(function()
-			return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
+		tw(panel, TI, {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1})
+		task.delay(0.28, function()
+			if not isOpen then anchor.Size = UDim2.new(0, BAR_W, 0, BAR_H) end
 		end)
-		if success and ping then
-			pingLabel.Text = math.floor(ping) .. " ms"
-		end
 	end
-end)
+end
 
--- Notification system override
-getgenv()._lav_notify = function(title, body, duration, ntype)
-	duration = duration or 4
-	local notifFrame = create("Frame", {
-		Size = UDim2.new(0, 300, 0, 60),
-		Position = UDim2.new(1, 320, 1, -80),
-		BackgroundColor3 = Colors.Surface,
-		BorderSizePixel = 0
+local togBtn = mk("TextButton", {
+	Position = UDim2.new(1, -52, 0.5, -13),
+	Size = UDim2.new(0, 42, 0, 26),
+	BackgroundColor3 = Color3.fromRGB(72, 44, 140),
+	BackgroundTransparency = 0.45,
+	Text = "▽",
+	TextSize = 10,
+	Font = Enum.Font.GothamBold,
+	TextColor3 = C.ACCENT,
+	AutoButtonColor = false,
+	BorderSizePixel = 0,
+}, bar)
+corner(13, togBtn)
+vstroke(0.8, Color3.fromRGB(138, 98, 235), 0.44, togBtn)
+
+togBtn.MouseButton1Click:Connect(function()
+	togglePanel()
+	togBtn.Text = isOpen and "△" or "▽"
+end)
+togBtn.MouseEnter:Connect(function() tw(togBtn, 0.18, {BackgroundTransparency = 0.18}) end)
+togBtn.MouseLeave:Connect(function() tw(togBtn, 0.18, {BackgroundTransparency = 0.45}) end)
+
+for _, d in btnData do
+	tabBtns[d.name].MouseButton1Click:Connect(function()
+		if d.name == "Respawn" then
+			local char = lp.Character
+			if char then
+				local hum = char:FindFirstChildOfClass("Humanoid")
+				if hum then hum.Health = 0 end
+			end
+			return
+		end
+		if not isOpen then togglePanel(); togBtn.Text = "△" end
+		switchTab(d.name)
+	end)
+end
+
+switchTab("Commands")
+
+local notifStack = {}
+
+local function notify(title, body, ntype, dur)
+	dur = dur or 4
+	local key = title:lower():gsub("%s+", "_")
+
+	if notifStack[key] then
+		local n = notifStack[key]
+		n.count += 1
+		n.countLbl.Text = n.count .. "x"
+		n.countLbl.Visible = true
+		task.cancel(n.thread)
+		n.thread = task.delay(dur, function()
+			tw(n.frame, 0.22, {Position = UDim2.new(1, 20, 0, 0), BackgroundTransparency = 1})
+			task.wait(0.25)
+			n.frame:Destroy()
+			notifStack[key] = nil
+		end)
+		return
+	end
+
+	local typeColors = {
+		success = C.GREEN,
+		info    = C.ACCENT,
+		warn    = C.YELLOW,
+		err     = C.RED,
+	}
+	local accent = typeColors[ntype] or C.ACCENT
+
+	local nf = mk("Frame", {
+		Position = UDim2.new(1, 20, 1, -(80 + 66 * (#notifStack))),
+		Size = UDim2.new(0, 300, 0, 58),
+		BackgroundColor3 = C.SURF,
+		BackgroundTransparency = 0.06,
+		BorderSizePixel = 0,
+		ZIndex = 10,
 	}, gui)
-	
-	corner(8, notifFrame)
-	create("UIStroke", {Color = ntype == "error" and Colors.Error or ntype == "success" and Colors.Success or Colors.Accent, Thickness = 1}, notifFrame)
-	
-	create("TextLabel", {
-		Size = UDim2.new(1, -20, 0, 25),
-		Position = UDim2.new(0, 10, 0, 8),
+	corner(12, nf)
+	vstroke(1, accent, 0.6, nf)
+
+	mk("Frame", {
+		Position = UDim2.new(0, 0, 0, 0),
+		Size = UDim2.new(0, 3, 1, 0),
+		BackgroundColor3 = accent,
+		BorderSizePixel = 0,
+		ZIndex = 11,
+	}, nf)
+	corner(3, nf:FindFirstChildOfClass("Frame"))
+
+	mk("TextLabel", {
+		Position = UDim2.new(0, 14, 0, 8),
+		Size = UDim2.new(1, -90, 0, 20),
 		BackgroundTransparency = 1,
 		Text = title,
-		TextColor3 = Colors.Text,
-		TextSize = 14,
+		TextSize = 13,
 		Font = Enum.Font.GothamBold,
-		TextXAlignment = Enum.TextXAlignment.Left
-	}, notifFrame)
-	
-	create("TextLabel", {
-		Size = UDim2.new(1, -20, 0, 20),
-		Position = UDim2.new(0, 10, 0, 32),
+		TextColor3 = C.TEXT,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 11,
+	}, nf)
+
+	mk("TextLabel", {
+		Position = UDim2.new(0, 14, 0, 30),
+		Size = UDim2.new(1, -90, 0, 18),
 		BackgroundTransparency = 1,
 		Text = body,
-		TextColor3 = Colors.TextMuted,
-		TextSize = 12,
+		TextSize = 11,
 		Font = Enum.Font.Gotham,
-		TextXAlignment = Enum.TextXAlignment.Left
-	}, notifFrame)
-	
-	-- Animate in
-	tween(notifFrame, 0.4, {Position = UDim2.new(1, -320, 1, -80)})
-	
-	task.delay(duration, function()
-		tween(notifFrame, 0.4, {Position = UDim2.new(1, 320, 1, -80)})
-		task.wait(0.4)
-		notifFrame:Destroy()
+		TextColor3 = C.MUTED,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 11,
+	}, nf)
+
+	local countLbl = mk("TextLabel", {
+		Position = UDim2.new(1, -54, 0.5, -10),
+		Size = UDim2.new(0, 36, 0, 20),
+		BackgroundColor3 = Color3.fromRGB(85, 50, 155),
+		BackgroundTransparency = 0.5,
+		Text = "1x",
+		TextSize = 10,
+		Font = Enum.Font.GothamBold,
+		TextColor3 = C.ACCENT,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Visible = false,
+		ZIndex = 12,
+	}, nf)
+	corner(6, countLbl)
+
+	tw(nf, 0.26, {Position = UDim2.new(1, -318, 1, -(80 + 66 * (table.getn(notifStack) or 0)))})
+
+	local entry = {frame = nf, count = 1, countLbl = countLbl, thread = nil}
+	notifStack[key] = entry
+
+	entry.thread = task.delay(dur, function()
+		tw(nf, 0.22, {Position = UDim2.new(1, 20, nf.Position.Y.Scale, nf.Position.Y.Offset), BackgroundTransparency = 1})
+		task.wait(0.25)
+		nf:Destroy()
+		notifStack[key] = nil
 	end)
 end
 
--- Initial notification
-getgenv()._lav_notify("Lavender Admin", "Loaded successfully! Prefix: " .. state.prefix, 4, "success")
+getgenv()._lav_notify = notify
+
+local dragging, dragStart, startPos = false, nil, nil
+bar.InputBegan:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true; dragStart = i.Position; startPos = anchor.Position
+	end
+end)
+UIS.InputChanged:Connect(function(i)
+	if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+		local d = i.Position - dragStart
+		anchor.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+	end
+end)
+UIS.InputEnded:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+end)
+
+local lastDeathCF = nil
+lp.CharacterAdded:Connect(function(char)
+	char:WaitForChild("Humanoid").Died:Connect(function()
+		local r = char:FindFirstChild("HumanoidRootPart")
+		if r then lastDeathCF = r.CFrame end
+	end)
+	if lastDeathCF then
+		task.wait(0.1)
+		local r = char:FindFirstChild("HumanoidRootPart")
+		if r then r.CFrame = lastDeathCF end
+	end
+end)
+
+local fpsBuf, fpsIdx, fpsAcc = {}, 1, 0
+for i = 1, 20 do fpsBuf[i] = 60 end
+local lastT = os.clock()
+local pingTick = 0
+
+RunService.Heartbeat:Connect(function()
+	local now = os.clock()
+	local dt = now - lastT
+	lastT = now
+	if dt > 0 then
+		local s = math.floor(1 / dt)
+		fpsAcc = fpsAcc - fpsBuf[fpsIdx] + s
+		fpsBuf[fpsIdx] = s
+		fpsIdx = fpsIdx % 20 + 1
+		local avg = fpsAcc / 20
+		fpsLbl.Text = math.floor(avg) .. " FPS"
+		local col = avg >= 50 and C.GREEN or avg >= 30 and C.YELLOW or C.RED
+		fpsDot.BackgroundColor3 = col
+		fpsLbl.TextColor3 = col
+	end
+	pingTick += 1
+	if pingTick >= 20 then
+		pingTick = 0
+		local ok, p = pcall(function() return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() end)
+		if ok then
+			pingLbl.Text = "PING " .. math.floor(p) .. " ms"
+			pingDot.BackgroundColor3 = p < 80 and C.BLUE or p < 150 and C.YELLOW or C.RED
+		end
+	end
+end)
+
+notify("LavAdmin", "Loaded  •  Prefix: " .. (state.prefix or ";"), "success", 5)
 getgenv()._lav_gui_loaded = true
