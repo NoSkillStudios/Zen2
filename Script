@@ -17,13 +17,12 @@ local CMDS   = getgenv()._lav_cmds
 local runCmd = getgenv()._lav_run
 local state  = getgenv()._lav_state or {prefix = ";"}
 
--- FIX: tw function now handles both number and TweenInfo
 local function tw(obj, timeOrTweenInfo, props)
 	local tweenInfo
 	if typeof(timeOrTweenInfo) == "number" then
 		tweenInfo = TweenInfo.new(timeOrTweenInfo, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 	else
-		tweenInfo = timeOrTweenInfo -- It's already a TweenInfo
+		tweenInfo = timeOrTweenInfo
 	end
 	TweenServ:Create(obj, tweenInfo, props):Play()
 end
@@ -36,11 +35,7 @@ local function mk(cls, props, parent)
 end
 local function corner(r, p) mk("UICorner", {CornerRadius = UDim.new(0, r)}, p) end
 local function stroke(t, c, tr, p)
-	mk("UIStroke", {
-		Thickness = t, Color = c, Transparency = tr,
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		LineJoinMode = Enum.LineJoinMode.Round,
-	}, p)
+	mk("UIStroke", {Thickness = t, Color = c, Transparency = tr, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, p)
 end
 
 local C = {
@@ -50,7 +45,6 @@ local C = {
 	BDR   = Color3.fromRGB(36, 36, 36),
 	TEXT  = Color3.fromRGB(210, 210, 210),
 	MUTED = Color3.fromRGB(90, 90, 90),
-	DIM   = Color3.fromRGB(55, 55, 55),
 	GREEN = Color3.fromRGB(72, 175, 100),
 	YEL   = Color3.fromRGB(205, 165, 55),
 	RED   = Color3.fromRGB(195, 60, 60),
@@ -58,9 +52,10 @@ local C = {
 }
 
 local TI    = TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-local BAR_W = 620
 local BAR_H = 50
-local PAN_H = 320
+local SB_W  = 60
+local CW    = 520
+local PAN_H = 340
 
 local gui = mk("ScreenGui", {
 	Name = "LavenderAdmin",
@@ -69,30 +64,45 @@ local gui = mk("ScreenGui", {
 	DisplayOrder = 999,
 }, pg)
 
--- Main anchor - always visible
+-- Anchor at top right
 local anchor = mk("Frame", {
-	Position = UDim2.new(0.5, -(BAR_W / 2), 0, 16),
-	Size = UDim2.new(0, BAR_W, 0, BAR_H), -- Start collapsed (just bar)
+	Position = UDim2.new(1, -(CW + SB_W + 30), 0, 20),
+	Size = UDim2.new(0, CW + SB_W + 10, 0, BAR_H), -- L-shape height (just bar + sidebar)
 	BackgroundTransparency = 1,
 	ClipsDescendants = false,
-	BorderSizePixel = 0,
 }, gui)
 
--- Top bar - ALWAYS VISIBLE
+-- TOP BAR (Horizontal part of L)
 local bar = mk("Frame", {
-	Size = UDim2.new(1, 0, 0, BAR_H),
+	Size = UDim2.new(0, CW, 0, BAR_H),
 	BackgroundColor3 = C.BG,
 	BackgroundTransparency = 0,
 	BorderSizePixel = 0,
-	ClipsDescendants = false,
 }, anchor)
 corner(10, bar)
 stroke(1, C.BDR, 0, bar)
 
--- Panel - Drops down from bar when open
+-- SIDEBAR (Vertical part of L) - Always visible, attached to right of bar
+local sidebar = mk("Frame", {
+	Position = UDim2.new(0, CW + 10, 0, 0),
+	Size = UDim2.new(0, SB_W, 0, BAR_H), -- Same height as bar = L shape
+	BackgroundColor3 = C.BG,
+	BackgroundTransparency = 0,
+	BorderSizePixel = 0,
+}, anchor)
+corner(10, sidebar)
+stroke(1, C.BDR, 0, sidebar)
+
+mk("UIListLayout", {
+	Padding = UDim.new(0, 8),
+	HorizontalAlignment = Enum.HorizontalAlignment.Center,
+	VerticalAlignment = Enum.VerticalAlignment.Center,
+}, sidebar)
+
+-- CONTENT PANEL (Below bar, hidden when collapsed)
 local panel = mk("Frame", {
-	Position = UDim2.new(0, 0, 0, BAR_H + 5),
-	Size = UDim2.new(1, 0, 0, 0), -- Start collapsed
+	Position = UDim2.new(0, 0, 0, BAR_H + 8),
+	Size = UDim2.new(0, CW, 0, 0), -- Hidden initially
 	BackgroundColor3 = C.BG,
 	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
@@ -101,143 +111,79 @@ local panel = mk("Frame", {
 corner(10, panel)
 stroke(1, C.BDR, 0.3, panel)
 
--- Avatar
-local avWrap = mk("Frame", {
-	Position = UDim2.new(0, 7, 0.5, -18),
-	Size = UDim2.new(0, 36, 0, 36),
-	BackgroundColor3 = C.SURF,
-	BorderSizePixel = 0,
-}, bar)
-corner(8, avWrap)
-stroke(1, C.BDR, 0, avWrap)
-
-mk("ImageLabel", {
-	Size = UDim2.new(1, 0, 1, 0),
+-- Top bar contents
+mk("TextLabel", {
+	Position = UDim2.new(0, 15, 0, 0),
+	Size = UDim2.new(0, 120, 1, 0),
 	BackgroundTransparency = 1,
-	Image = "rbxthumb://type=AvatarHeadShot&id=" .. lp.UserId .. "&w=48&h=48",
-	ScaleType = Enum.ScaleType.Stretch,
-}, avWrap)
+	Text = "LAVENDER",
+	TextSize = 18,
+	Font = Enum.Font.GothamBlack,
+	TextColor3 = C.TEXT,
+	TextXAlignment = Enum.TextXAlignment.Left,
+}, bar)
 
 -- Stats
 local statsF = mk("Frame", {
-	Position = UDim2.new(0, 50, 0, 0),
-	Size = UDim2.new(0, 105, 1, 0),
+	Position = UDim2.new(0, 140, 0, 0),
+	Size = UDim2.new(0, 100, 1, 0),
 	BackgroundTransparency = 1,
-	BorderSizePixel = 0,
 }, bar)
 
-local fpsDot = mk("Frame", {
-	Position = UDim2.new(0, 0, 0, 12),
-	Size = UDim2.new(0, 5, 0, 5),
-	BackgroundColor3 = C.GREEN,
-	BorderSizePixel = 0,
-}, statsF)
+local fpsDot = mk("Frame", {Position=UDim2.new(0,0,0,15), Size=UDim2.new(0,5,0,5), BackgroundColor3=C.GREEN, BorderSizePixel=0}, statsF)
 corner(3, fpsDot)
+local fpsLbl = mk("TextLabel", {Position=UDim2.new(0,10,0,8), Size=UDim2.new(0,60,0,16), BackgroundTransparency=1, Text="60 FPS", TextSize=11, Font=Enum.Font.GothamBold, TextColor3=C.TEXT, TextXAlignment=Enum.TextXAlignment.Left}, statsF)
 
-local fpsLbl = mk("TextLabel", {
-	Position = UDim2.new(0, 9, 0, 4),
-	Size = UDim2.new(0, 72, 0, 16),
-	BackgroundTransparency = 1,
-	Text = "60 FPS",
-	TextSize = 12,
-	Font = Enum.Font.GothamBold,
-	TextColor3 = C.TEXT,
-	TextXAlignment = Enum.TextXAlignment.Left,
-}, statsF)
-
-local pingDot = mk("Frame", {
-	Position = UDim2.new(0, 0, 0, 30),
-	Size = UDim2.new(0, 5, 0, 5),
-	BackgroundColor3 = C.BLUE,
-	BorderSizePixel = 0,
-}, statsF)
+local pingDot = mk("Frame", {Position=UDim2.new(0,0,0,32), Size=UDim2.new(0,5,0,5), BackgroundColor3=C.BLUE, BorderSizePixel=0}, statsF)
 corner(3, pingDot)
+local pingLbl = mk("TextLabel", {Position=UDim2.new(0,10,0,25), Size=UDim2.new(0,60,0,16), BackgroundTransparency=1, Text="-- ms", TextSize=10, Font=Enum.Font.GothamBold, TextColor3=C.MUTED, TextXAlignment=Enum.TextXAlignment.Left}, statsF)
 
-local pingLbl = mk("TextLabel", {
-	Position = UDim2.new(0, 9, 0, 22),
-	Size = UDim2.new(0, 72, 0, 15),
-	BackgroundTransparency = 1,
-	Text = "PING -- ms",
+-- Open/Close toggle (on bar)
+local togBtn = mk("TextButton", {
+	Position = UDim2.new(1, -65, 0.5, -12),
+	Size = UDim2.new(0, 50, 0, 24),
+	BackgroundColor3 = C.SURFH,
+	Text = "OPEN",
 	TextSize = 10,
-	Font = Enum.Font.GothamBold,
-	TextColor3 = C.MUTED,
-	TextXAlignment = Enum.TextXAlignment.Left,
-}, statsF)
-
--- Title
-mk("TextLabel", {
-	Position = UDim2.new(0.5, -55, 0, 0),
-	Size = UDim2.new(0, 110, 1, 0),
-	BackgroundTransparency = 1,
-	Text = "LavAdmin",
-	TextSize = 15,
 	Font = Enum.Font.GothamBlack,
 	TextColor3 = C.TEXT,
-	TextXAlignment = Enum.TextXAlignment.Center,
+	AutoButtonColor = false,
 }, bar)
+corner(6, togBtn)
 
--- Tab buttons container (right side)
-local iconRow = mk("Frame", {
-	Position = UDim2.new(1, -188, 0, 0),
-	Size = UDim2.new(0, 140, 1, 0),
-	BackgroundTransparency = 1,
-	BorderSizePixel = 0,
-}, bar)
-mk("UIListLayout", {
-	FillDirection = Enum.FillDirection.Horizontal,
-	HorizontalAlignment = Enum.HorizontalAlignment.Center,
-	VerticalAlignment = Enum.VerticalAlignment.Center,
-	Padding = UDim.new(0, 2),
-}, iconRow)
+-- Tab buttons in sidebar
+local tabBtns = {}
+local tabs = {}
+local activeTab = nil
+local isOpen = false
 
--- Tab content container
-local tabContent = mk("Frame", {
-	Size = UDim2.new(1, -24, 1, -24),
-	Position = UDim2.new(0, 12, 0, 12),
-	BackgroundTransparency = 1,
-	BorderSizePixel = 0,
-}, panel)
-
--- Tab definitions
 local tabDefs = {
-	{name = "Commands", img = "rbxassetid://125186519787585", action = false},
-	{name = "Execute",  img = "rbxassetid://126110596194847", action = false},
-	{name = "Settings", img = "rbxassetid://126110596194847", action = false},
-	{name = "Respawn",  img = "rbxassetid://76473261378555",  action = true},
+	{name="Commands", img="rbxassetid://125186519787585"},
+	{name="Execute", img="rbxassetid://126110596194847"},
+	{name="Respawn", img="rbxassetid://76473261378555", action=true},
 }
 
-local tabs      = {}
-local tabBtns   = {}
-local activeTab = nil
-local isOpen    = false
-
--- Create tab buttons
-for _, d in tabDefs do
+for _, d in ipairs(tabDefs) do
 	local btn = mk("ImageButton", {
-		Name = d.name,
-		Size = UDim2.new(0, 34, 0, 34),
+		Size = UDim2.new(0, 40, 0, 40),
 		BackgroundTransparency = 1,
 		BackgroundColor3 = C.SURFH,
 		Image = d.img,
-		ScaleType = Enum.ScaleType.Fit,
 		ImageColor3 = C.MUTED,
 		AutoButtonColor = false,
-		BorderSizePixel = 0,
-	}, iconRow)
-	corner(7, btn)
+	}, sidebar)
+	corner(8, btn)
 	tabBtns[d.name] = btn
-
+	
 	if not d.action then
-		local p = mk("Frame", {
-			Name = d.name,
-			Size = UDim2.new(1, 0, 1, 0),
+		tabs[d.name] = mk("Frame", {
+			Size = UDim2.new(1, -24, 1, -24),
+			Position = UDim2.new(0, 12, 0, 12),
 			BackgroundTransparency = 1,
 			Visible = false,
-			BorderSizePixel = 0,
-		}, tabContent)
-		tabs[d.name] = p
+		}, panel)
 	end
-
+	
 	btn.MouseEnter:Connect(function()
 		if activeTab ~= d.name then
 			tw(btn, 0.15, {BackgroundTransparency = 0.6, ImageColor3 = C.TEXT})
@@ -248,377 +194,355 @@ for _, d in tabDefs do
 			tw(btn, 0.15, {BackgroundTransparency = 1, ImageColor3 = C.MUTED})
 		end
 	end)
-end
-
--- Build Commands Tab
-local cmdScroll = mk("ScrollingFrame", {
-	Size = UDim2.new(1, 0, 1, 0),
-	BackgroundTransparency = 1,
-	BorderSizePixel = 0,
-	ScrollBarThickness = 3,
-	ScrollBarImageColor3 = C.DIM,
-	CanvasSize = UDim2.new(0, 0, 0, 0),
-	AutomaticCanvasSize = Enum.AutomaticSize.Y,
-}, tabs["Commands"])
-mk("UIListLayout", {Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder}, cmdScroll)
-mk("UIPadding", {PaddingBottom = UDim.new(0, 4)}, cmdScroll)
-
-local function buildCmdRow(parent, keyTxt, descTxt, onRun)
-	local row = mk("Frame", {
-		Size = UDim2.new(1, 0, 0, 36),
-		BackgroundColor3 = C.SURF,
-		BorderSizePixel = 0,
-	}, parent)
-	corner(7, row)
-	stroke(1, C.BDR, 0.2, row)
 	
-	mk("TextLabel", {
-		Position = UDim2.new(0, 10, 0, 0),
-		Size = UDim2.new(0, 90, 1, 0),
-		BackgroundTransparency = 1,
-		Text = keyTxt,
-		TextSize = 11,
-		Font = Enum.Font.GothamBold,
-		TextColor3 = C.TEXT,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Center,
-	}, row)
-	
-	mk("TextLabel", {
-		Position = UDim2.new(0, 106, 0, 0),
-		Size = UDim2.new(1, -160, 1, 0),
-		BackgroundTransparency = 1,
-		Text = descTxt,
-		TextSize = 11,
-		Font = Enum.Font.Gotham,
-		TextColor3 = C.MUTED,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Center,
-	}, row)
-	
-	local rb = mk("TextButton", {
-		Position = UDim2.new(1, -52, 0.5, -12),
-		Size = UDim2.new(0, 44, 0, 24),
-		BackgroundColor3 = C.SURFH,
-		BackgroundTransparency = 0,
-		Text = "run",
-		TextSize = 10,
-		Font = Enum.Font.GothamBold,
-		TextColor3 = C.MUTED,
-		AutoButtonColor = false,
-		BorderSizePixel = 0,
-	}, row)
-	corner(5, rb)
-	stroke(1, C.BDR, 0, rb)
-	
-	rb.MouseEnter:Connect(function() tw(rb, 0.12, {BackgroundColor3 = C.SURFH, TextColor3 = C.TEXT}) end)
-	rb.MouseLeave:Connect(function() tw(rb, 0.12, {BackgroundColor3 = C.SURFH, TextColor3 = C.MUTED}) end)
-	rb.MouseButton1Click:Connect(onRun)
-	return row
-end
-
--- Populate commands
-local seen, idx = {}, 1
-for name, cmd in CMDS do
-	if cmd.name == name and not seen[cmd] then
-		seen[cmd] = true
-		buildCmdRow(cmdScroll, state.prefix .. name, cmd.desc or "", function()
-			runCmd(name)
-			getgenv()._lav_notify(name, "Command executed", "info", 3)
-		end)
-		idx += 1
-	end
-end
-
--- Execute Tab
-local execInput = mk("TextBox", {
-	Position = UDim2.new(0, 0, 0, 0),
-	Size = UDim2.new(1, -56, 0, 36),
-	BackgroundColor3 = C.SURF,
-	BackgroundTransparency = 0,
-	PlaceholderText = "Enter command...",
-	PlaceholderColor3 = C.MUTED,
-	Text = "",
-	TextSize = 12,
-	Font = Enum.Font.Gotham,
-	TextColor3 = C.TEXT,
-	ClearTextOnFocus = false,
-	BorderSizePixel = 0,
-}, tabs["Execute"])
-corner(7, execInput)
-stroke(1, C.BDR, 0.2, execInput)
-mk("UIPadding", {PaddingLeft = UDim.new(0, 10)}, execInput)
-
-local execBtn = mk("TextButton", {
-	Position = UDim2.new(1, -50, 0, 0),
-	Size = UDim2.new(0, 46, 0, 36),
-	BackgroundColor3 = C.SURFH,
-	Text = "run",
-	TextSize = 11,
-	Font = Enum.Font.GothamBold,
-	TextColor3 = C.MUTED,
-	AutoButtonColor = false,
-	BorderSizePixel = 0,
-}, tabs["Execute"])
-corner(7, execBtn)
-stroke(1, C.BDR, 0.2, execBtn)
-
-execBtn.MouseButton1Click:Connect(function()
-	local t = execInput.Text
-	if t == "" then return end
-	local stripped = t:sub(1, #(state.prefix or ";")) == (state.prefix or ";") and t:sub(#(state.prefix or ";") + 1) or t
-	runCmd(stripped)
-	execInput.Text = ""
-	getgenv()._lav_notify("Execute", "Sent: " .. stripped, "info", 3)
-end)
-execInput.FocusLost:Connect(function(enter)
-	if enter then execBtn.MouseButton1Click:Fire() end
-end)
-
--- Settings Tab
-local function buildTogRow(parent, lbl, desc, default)
-	local row = mk("Frame", {Size=UDim2.new(1,0,0,36), BackgroundColor3=C.SURF, BorderSizePixel=0}, parent)
-	corner(7, row)
-	stroke(1, C.BDR, 0.2, row)
-	mk("TextLabel", {Position=UDim2.new(0,10,0,0), Size=UDim2.new(1,-60,1,0), BackgroundTransparency=1, Text=lbl, TextSize=11, Font=Enum.Font.GothamBold, TextColor3=C.TEXT, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Center}, row)
-	mk("TextLabel", {Position=UDim2.new(0,10,1,-14), Size=UDim2.new(1,-60,0,12), BackgroundTransparency=1, Text=desc, TextSize=9, Font=Enum.Font.Gotham, TextColor3=C.MUTED, TextXAlignment=Enum.TextXAlignment.Left}, row)
-	local on = default
-	local tog = mk("TextButton", {Position=UDim2.new(1,-50,0.5,-12), Size=UDim2.new(0,42,0,24), BackgroundColor3=on and C.SURFH or C.SURF, Text=on and "on" or "off", TextSize=10, Font=Enum.Font.GothamBold, TextColor3=on and C.TEXT or C.MUTED, AutoButtonColor=false, BorderSizePixel=0}, row)
-	corner(5, tog)
-	stroke(1, C.BDR, 0, tog)
-	tog.MouseButton1Click:Connect(function()
-		on = not on
-		tog.Text = on and "on" or "off"
-		tw(tog, 0.15, {TextColor3 = on and C.TEXT or C.MUTED})
-	end)
-end
-
-local setScroll = mk("ScrollingFrame", {Size=UDim2.new(1,0,1,0), BackgroundTransparency=1, BorderSizePixel=0, ScrollBarThickness=3, ScrollBarImageColor3=C.DIM, CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y}, tabs["Settings"])
-mk("UIListLayout", {Padding=UDim.new(0,5), SortOrder=Enum.SortOrder.LayoutOrder}, setScroll)
-buildTogRow(setScroll, "FPS counter", "Show framerate in topbar", true)
-buildTogRow(setScroll, "Ping display", "Show network latency", true)
-buildTogRow(setScroll, "Notifications", "Stack-style toasts", true)
-
--- Tab switching
-local function switchTab(name)
-	if activeTab then
-		if tabs[activeTab] then tabs[activeTab].Visible = false end
-		tw(tabBtns[activeTab], 0.15, {BackgroundTransparency = 1, ImageColor3 = C.MUTED})
-	end
-	activeTab = name
-	if tabs[name] then tabs[name].Visible = true end
-	tw(tabBtns[name], 0.15, {BackgroundTransparency = 0.55, ImageColor3 = C.TEXT})
-end
-
--- Open/Close Toggle Button
-local togBtn = mk("TextButton", {
-	Position = UDim2.new(1, -52, 0.5, -13),
-	Size = UDim2.new(0, 46, 0, 26),
-	BackgroundColor3 = C.SURFH,
-	BackgroundTransparency = 0,
-	Text = "open",
-	TextSize = 10,
-	Font = Enum.Font.GothamBold,
-	TextColor3 = C.MUTED,
-	AutoButtonColor = false,
-	BorderSizePixel = 0,
-	ZIndex = 10,
-}, bar)
-corner(6, togBtn)
-stroke(1, C.BDR, 0, togBtn)
-
--- FIX: Proper toggle function using TI (TweenInfo object) correctly
-local function togglePanel()
-	isOpen = not isOpen
-	if isOpen then
-		-- OPEN
-		togBtn.Text = "close"
-		tw(togBtn, 0.15, {TextColor3 = C.TEXT})
-		
-		anchor.Size = UDim2.new(0, BAR_W, 0, BAR_H + PAN_H + 5)
-		tw(panel, TI, {Size = UDim2.new(1, 0, 0, PAN_H), BackgroundTransparency = 0})
-		
-		if activeTab and tabs[activeTab] then 
-			tabs[activeTab].Visible = true 
-		end
-	else
-		-- CLOSE
-		togBtn.Text = "open"
-		tw(togBtn, 0.15, {TextColor3 = C.MUTED})
-		
-		tw(panel, TI, {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1})
-		
-		task.delay(0.22, function()
-			if not isOpen then
-				anchor.Size = UDim2.new(0, BAR_W, 0, BAR_H)
-				for _, t in pairs(tabs) do 
-					if typeof(t) == "Instance" then t.Visible = false end
-				end
-			end
-		end)
-	end
-end
-
-togBtn.MouseEnter:Connect(function() if not isOpen then tw(togBtn, 0.12, {TextColor3 = C.TEXT}) end end)
-togBtn.MouseLeave:Connect(function() if not isOpen then tw(togBtn, 0.12, {TextColor3 = C.MUTED}) end end)
-togBtn.MouseButton1Click:Connect(togglePanel)
-
--- Tab button clicks
-for _, d in tabDefs do
-	tabBtns[d.name].MouseButton1Click:Connect(function()
+	btn.MouseButton1Click:Connect(function()
 		if d.action then
 			local char = lp.Character
 			if char then
 				local hum = char:FindFirstChildOfClass("Humanoid")
 				if hum then hum.Health = 0 end
 			end
-			getgenv()._lav_notify("Respawn", "Character respawned", "success", 3)
+			notify("Respawn", "Character reset", "success", 3)
 			return
 		end
-		if not isOpen then togglePanel() end
-		switchTab(d.name)
+		
+		if not isOpen then
+			togglePanel()
+		end
+		
+		-- Switch tab
+		if activeTab then
+			if tabs[activeTab] then tabs[activeTab].Visible = false end
+			tw(tabBtns[activeTab], 0.15, {BackgroundTransparency = 1, ImageColor3 = C.MUTED})
+		end
+		activeTab = d.name
+		tabs[d.name].Visible = true
+		tw(btn, 0.15, {BackgroundTransparency = 0.5, ImageColor3 = C.TEXT})
 	end)
 end
 
-switchTab("Commands")
+-- Build Commands Tab with rows + RUN buttons
+local cmdScroll = mk("ScrollingFrame", {
+	Size = UDim2.new(1, 0, 1, 0),
+	BackgroundTransparency = 1,
+	ScrollBarThickness = 4,
+	ScrollBarImageColor3 = C.BDR,
+	CanvasSize = UDim2.new(0, 0, 0, 0),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+}, tabs["Commands"])
 
--- FIX: Notification stacking system
-local notifStack = {}
-local notifHeight = 60
-local notifGap = 8
-local baseY = -88
+mk("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, cmdScroll)
 
-local function restackNotifications()
-	local currentStack = {}
-	for k, v in pairs(notifStack) do
-		table.insert(currentStack, v)
-	end
-	
-	table.sort(currentStack, function(a, b) 
-		return a.frame.AbsolutePosition.Y > b.frame.AbsolutePosition.Y 
-	end)
-	
-	for i, entry in ipairs(currentStack) do
-		local newY = baseY - ((i-1) * (notifHeight + notifGap))
-		entry.targetY = newY
-		tw(entry.frame, 0.2, {Position = UDim2.new(1, -296, 1, newY)})
-	end
-end
-
-local function notify(title, body, ntype, dur)
-	dur = dur or 4
-	local key = title:lower():gsub("%s+", "_")
-	local typeCol = {
-		success = C.GREEN,
-		info    = Color3.fromRGB(150, 150, 150),
-		warn    = C.YEL,
-		err     = C.RED,
-		error   = C.RED,
-	}
-	local accent = typeCol[ntype] or typeCol.info
-
-	if notifStack[key] then
-		local n = notifStack[key]
-		n.count += 1
-		n.cntLbl.Text = n.count .. "×"
-		n.cntLbl.Visible = true
-		
-		if n.thread then task.cancel(n.thread) end
-		
-		n.thread = task.delay(dur, function()
-			tw(n.frame, 0.2, {Position = UDim2.new(1, 20, 1, n.targetY), BackgroundTransparency = 1})
-			task.wait(0.22)
-			n.frame:Destroy()
-			notifStack[key] = nil
-			restackNotifications()
-		end)
-		return
-	end
-
-	local stackPos = 0
-	for k, v in pairs(notifStack) do stackPos += 1 end
-	local targetY = baseY - (stackPos * (notifHeight + notifGap))
-
-	local nf = mk("Frame", {
-		Position = UDim2.new(1, 20, 1, baseY),
-		Size = UDim2.new(0, 280, 0, 54),
-		BackgroundColor3 = C.BG,
-		BackgroundTransparency = 0,
+local function buildCmdRow(name, cmdData)
+	local row = mk("Frame", {
+		Size = UDim2.new(1, -10, 0, 42),
+		BackgroundColor3 = C.SURF,
 		BorderSizePixel = 0,
-		ZIndex = 10,
-	}, gui)
-	corner(9, nf)
-	stroke(1, C.BDR, 0, nf)
-
-	mk("Frame", {
-		Size = UDim2.new(0, 2, 1, 0),
-		BackgroundColor3 = accent,
-		BorderSizePixel = 0,
-		ZIndex = 11,
-	}, nf)
-
+	}, cmdScroll)
+	corner(8, row)
+	stroke(1, C.BDR, 0.3, row)
+	
+	-- Command name
 	mk("TextLabel", {
-		Position = UDim2.new(0, 12, 0, 8),
-		Size = UDim2.new(1, -60, 0, 18),
+		Position = UDim2.new(0, 12, 0, 0),
+		Size = UDim2.new(0, 100, 1, 0),
 		BackgroundTransparency = 1,
-		Text = title,
-		TextSize = 12,
-		Font = Enum.Font.GothamBold,
+		Text = state.prefix .. name,
+		TextSize = 13,
+		Font = Enum.Font.GothamBlack,
 		TextColor3 = C.TEXT,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 11,
-	}, nf)
-
+	}, row)
+	
+	-- Description
 	mk("TextLabel", {
-		Position = UDim2.new(0, 12, 0, 28),
-		Size = UDim2.new(1, -60, 0, 16),
+		Position = UDim2.new(0, 120, 0, 0),
+		Size = UDim2.new(1, -200, 1, 0),
 		BackgroundTransparency = 1,
-		Text = body,
-		TextSize = 10,
+		Text = cmdData.desc or "",
+		TextSize = 12,
 		Font = Enum.Font.Gotham,
 		TextColor3 = C.MUTED,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 11,
-	}, nf)
-
-	local cntLbl = mk("TextLabel", {
-		Position = UDim2.new(1, -46, 0.5, -10),
-		Size = UDim2.new(0, 32, 0, 20),
-		BackgroundColor3 = C.SURFH,
-		BackgroundTransparency = 0,
-		Text = "1×",
-		TextSize = 10,
-		Font = Enum.Font.GothamBold,
-		TextColor3 = C.MUTED,
-		Visible = false,
-		ZIndex = 12,
-	}, nf)
-	corner(5, cntLbl)
-
-	local entry = {
-		frame = nf, 
-		count = 1, 
-		cntLbl = cntLbl, 
-		thread = nil,
-		targetY = targetY,
-		key = key
-	}
-	notifStack[key] = entry
-
-	tw(nf, 0.24, {Position = UDim2.new(1, -296, 1, targetY)})
-
-	entry.thread = task.delay(dur, function()
-		tw(nf, 0.2, {Position = UDim2.new(1, 20, 1, targetY), BackgroundTransparency = 1})
-		task.wait(0.22)
-		nf:Destroy()
-		notifStack[key] = nil
-		restackNotifications()
+		TextTruncate = Enum.TextTruncate.AtEnd,
+	}, row)
+	
+	-- RUN Button
+	local runBtn = mk("TextButton", {
+		Position = UDim2.new(1, -60, 0.5, -14),
+		Size = UDim2.new(0, 50, 0, 28),
+		BackgroundColor3 = C.GREEN,
+		BackgroundTransparency = 0.2,
+		Text = "RUN",
+		TextSize = 11,
+		Font = Enum.Font.GothamBlack,
+		TextColor3 = C.TEXT,
+		AutoButtonColor = false,
+	}, row)
+	corner(6, runBtn)
+	
+	runBtn.MouseEnter:Connect(function()
+		tw(runBtn, 0.15, {BackgroundTransparency = 0})
 	end)
+	runBtn.MouseLeave:Connect(function()
+		tw(runBtn, 0.15, {BackgroundTransparency = 0.2})
+	end)
+	
+	runBtn.MouseButton1Click:Connect(function()
+		-- Click animation
+		tw(runBtn, 0.1, {Size = UDim2.new(0, 46, 0, 24), Position = UDim2.new(1, -58, 0.5, -12)})
+		task.wait(0.1)
+		tw(runBtn, 0.1, {Size = UDim2.new(0, 50, 0, 28), Position = UDim2.new(1, -60, 0.5, -14)})
+		
+		runCmd(name)
+		notify(name, "Executed", "success", 2)
+	end)
+	
+	-- Click row to fill input
+	row.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 and input.Target ~= runBtn then
+			-- Could add input filling here
+		end
+	end)
+	
+	row.MouseEnter:Connect(function()
+		tw(row, 0.2, {BackgroundColor3 = C.SURFH})
+	end)
+	row.MouseLeave:Connect(function()
+		tw(row, 0.2, {BackgroundColor3 = C.SURF})
+	end)
+end
+
+-- Populate commands
+local seen = {}
+for name, cmd in pairs(CMDS) do
+	if cmd.name == name and not seen[cmd] then
+		seen[cmd] = true
+		buildCmdRow(name, cmd)
+	end
+end
+
+-- Execute Tab
+local execBox = mk("TextBox", {
+	Size = UDim2.new(1, -80, 0, 40),
+	Position = UDim2.new(0, 0, 0, 0),
+	BackgroundColor3 = C.SURF,
+	PlaceholderText = "; command args...",
+	PlaceholderColor3 = C.MUTED,
+	Text = "",
+	TextSize = 14,
+	Font = Enum.Font.Gotham,
+	TextColor3 = C.TEXT,
+	ClearTextOnFocus = false,
+}, tabs["Execute"])
+corner(8, execBox)
+stroke(1, C.BDR, 0.3, execBox)
+mk("UIPadding", {PaddingLeft = UDim.new(0, 12)}, execBox)
+
+local execBtn = mk("TextButton", {
+	Position = UDim2.new(1, -70, 0, 0),
+	Size = UDim2.new(0, 70, 0, 40),
+	BackgroundColor3 = C.BLUE,
+	Text = "EXEC",
+	TextSize = 12,
+	Font = Enum.Font.GothamBlack,
+	TextColor3 = C.TEXT,
+	AutoButtonColor = false,
+}, tabs["Execute"])
+corner(8, execBtn)
+
+execBtn.MouseButton1Click:Connect(function()
+	local txt = execBox.Text
+	if txt == "" then return end
+	if txt:sub(1, #state.prefix) == state.prefix then
+		txt = txt:sub(#state.prefix + 1)
+	end
+	runCmd(txt)
+	execBox.Text = ""
+	notify("Execute", txt, "info", 3)
+end)
+
+-- Toggle Function
+function togglePanel()
+	isOpen = not isOpen
+	
+	if isOpen then
+		-- EXPAND: Show panel below, extend sidebar down
+		togBtn.Text = "CLOSE"
+		tw(togBtn, 0.2, {BackgroundColor3 = C.RED, BackgroundTransparency = 0.3})
+		
+		-- Resize anchor to fit everything
+		anchor.Size = UDim2.new(0, CW + SB_W + 10, 0, BAR_H + PAN_H + 10)
+		
+		-- Animate panel
+		tw(panel, TI, {Size = UDim2.new(0, CW, 0, PAN_H), BackgroundTransparency = 0})
+		
+		-- Extend sidebar down
+		tw(sidebar, TI, {Size = UDim2.new(0, SB_W, 0, BAR_H + PAN_H + 10)})
+		
+		if activeTab then
+			tabs[activeTab].Visible = true
+		end
+	else
+		-- COLLAPSE: Hide panel, shrink sidebar to L-shape
+		togBtn.Text = "OPEN"
+		tw(togBtn, 0.2, {BackgroundColor3 = C.SURFH, BackgroundTransparency = 0})
+		
+		tw(panel, TI, {Size = UDim2.new(0, CW, 0, 0), BackgroundTransparency = 1})
+		tw(sidebar, TI, {Size = UDim2.new(0, SB_W, 0, BAR_H)})
+		
+		task.delay(0.22, function()
+			if not isOpen then
+				anchor.Size = UDim2.new(0, CW + SB_W + 10, 0, BAR_H)
+				for _, t in pairs(tabs) do t.Visible = false end
+			end
+		end)
+	end
+end
+
+togBtn.MouseButton1Click:Connect(togglePanel)
+
+-- Initialize
+activeTab = "Commands"
+tabs.Commands.Visible = true
+tw(tabBtns.Commands, 0, {BackgroundTransparency = 0.5, ImageColor3 = C.TEXT})
+
+-- Notification System
+local notifStack = {}
+local notifHeight = 64
+local notifGap = 8
+local baseY = -20
+
+function notify(title, body, ntype, dur)
+	dur = dur or 4
+	local key = title:lower():gsub("%s+", "_")
+	local colors = {success = C.GREEN, info = C.BLUE, warn = C.YEL, error = C.RED}
+	local accent = colors[ntype] or C.BLUE
+	
+	if notifStack[key] then
+		local n = notifStack[key]
+		n.count += 1
+		n.countLabel.Text = n.count .. "×"
+		n.countLabel.Visible = true
+		if n.thread then task.cancel(n.thread) end
+		n.thread = task.delay(dur, function()
+			tw(n.frame, 0.2, {Position = UDim2.new(1, 20, 1, n.targetY)})
+			task.wait(0.2)
+			n.frame:Destroy()
+			notifStack[key] = nil
+			restackNotifs()
+		end)
+		return
+	end
+	
+	local count = 0
+	for _ in pairs(notifStack) do count += 1 end
+	local targetY = baseY - (count * (notifHeight + notifGap))
+	
+	local frame = mk("Frame", {
+		Position = UDim2.new(1, 20, 1, baseY),
+		Size = UDim2.new(0, 300, 0, notifHeight),
+		BackgroundColor3 = C.BG,
+		BorderSizePixel = 0,
+	}, gui)
+	corner(10, frame)
+	stroke(1, accent, 0.5, frame)
+	
+	mk("Frame", {Size=UDim2.new(0, 3, 1, 0), BackgroundColor3=accent, BorderSizePixel=0}, frame)
+	
+	mk("TextLabel", {
+		Position = UDim2.new(0, 15, 0, 10),
+		Size = UDim2.new(1, -60, 0, 20),
+		BackgroundTransparency = 1,
+		Text = title,
+		TextSize = 13,
+		Font = Enum.Font.GothamBlack,
+		TextColor3 = C.TEXT,
+		TextXAlignment = Enum.TextXAlignment.Left,
+	}, frame)
+	
+	mk("TextLabel", {
+		Position = UDim2.new(0, 15, 0, 32),
+		Size = UDim2.new(1, -60, 0, 20),
+		BackgroundTransparency = 1,
+		Text = body,
+		TextSize = 11,
+		Font = Enum.Font.Gotham,
+		TextColor3 = C.MUTED,
+		TextXAlignment = Enum.TextXAlignment.Left,
+	}, frame)
+	
+	local countLabel = mk("TextLabel", {
+		Position = UDim2.new(1, -45, 0.5, -10),
+		Size = UDim2.new(0, 30, 0, 20),
+		BackgroundColor3 = C.SURF,
+		Text = "1×",
+		TextSize = 11,
+		Font = Enum.Font.GothamBold,
+		TextColor3 = C.TEXT,
+		Visible = false,
+	}, frame)
+	corner(4, countLabel)
+	
+	local entry = {frame = frame, count = 1, countLabel = countLabel, targetY = targetY, key = key}
+	notifStack[key] = entry
+	
+	tw(frame, 0.3, {Position = UDim2.new(1, -320, 1, targetY)})
+	
+	entry.thread = task.delay(dur, function()
+		tw(frame, 0.2, {Position = UDim2.new(1, 20, 1, targetY)})
+		task.wait(0.2)
+		frame:Destroy()
+		notifStack[key] = nil
+		restackNotifs()
+	end)
+end
+
+function restackNotifs()
+	local items = {}
+	for _, v in pairs(notifStack) do table.insert(items, v) end
+	table.sort(items, function(a, b) return a.targetY > b.targetY end)
+	
+	for i, item in ipairs(items) do
+		local newY = baseY - ((i-1) * (notifHeight + notifGap))
+		item.targetY = newY
+		tw(item.frame, 0.2, {Position = UDim2.new(1, -320, 1, newY)})
+	end
 end
 
 getgenv()._lav_notify = notify
 
--- Death position tracking
+-- Stats loop
+local fpsBuf, fpsIdx, fpsAcc = {}, 1, 0
+for i = 1, 20 do fpsBuf[i] = 60 end
+local lastT = tick()
+
+RunService.Heartbeat:Connect(function()
+	local now = tick()
+	local dt = now - lastT
+	lastT = now
+	
+	if dt > 0 then
+		local s = 1 / dt
+		fpsAcc = fpsAcc - fpsBuf[fpsIdx] + s
+		fpsBuf[fpsIdx] = s
+		fpsIdx = fpsIdx % 20 + 1
+		local avg = fpsAcc / 20
+		fpsLbl.Text = math.floor(avg) .. " FPS"
+		local col = avg >= 50 and C.GREEN or avg >= 30 and C.YEL or C.RED
+		fpsDot.BackgroundColor3 = col
+	end
+	
+	if tick() % 1 < 0.05 then
+		local ok, p = pcall(function() return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() end)
+		if ok then
+			pingLbl.Text = math.floor(p) .. " ms"
+			pingDot.BackgroundColor3 = p < 80 and C.BLUE or p < 150 and C.YEL or C.RED
+		end
+	end
+end)
+
+-- Death pos
 local lastDeathCF = nil
 lp.CharacterAdded:Connect(function(char)
 	char:WaitForChild("Humanoid").Died:Connect(function()
@@ -632,37 +556,5 @@ lp.CharacterAdded:Connect(function(char)
 	end
 end)
 
--- FPS/Ping loop
-local fpsBuf, fpsIdx, fpsAcc = {}, 1, 0
-for i = 1, 20 do fpsBuf[i] = 60 end
-local lastT    = os.clock()
-local pingTick = 0
-
-RunService.Heartbeat:Connect(function()
-	local now = os.clock()
-	local dt = now - lastT
-	lastT = now
-	if dt > 0 then
-		local s = math.floor(1 / dt)
-		fpsAcc = fpsAcc - fpsBuf[fpsIdx] + s
-		fpsBuf[fpsIdx] = s
-		fpsIdx = fpsIdx % 20 + 1
-		local avg = fpsAcc / 20
-		fpsLbl.Text = math.floor(avg) .. " FPS"
-		local col = avg >= 50 and C.GREEN or avg >= 30 and C.YEL or C.RED
-		fpsDot.BackgroundColor3 = col
-		fpsLbl.TextColor3 = col
-	end
-	pingTick += 1
-	if pingTick >= 20 then
-		pingTick = 0
-		local ok, p = pcall(function() return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() end)
-		if ok then
-			pingLbl.Text = "PING " .. math.floor(p) .. " ms"
-			pingDot.BackgroundColor3 = p < 80 and C.BLUE or p < 150 and C.YEL or C.RED
-		end
-	end
-end)
-
-notify("LavAdmin", "Loaded  •  Prefix: " .. (state.prefix or ";"), "success", 5)
+notify("Lavender Admin", "Loaded · Prefix: " .. state.prefix, "success", 5)
 getgenv()._lav_gui_loaded = true
