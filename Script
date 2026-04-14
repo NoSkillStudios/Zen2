@@ -579,4 +579,79 @@ function notify(title, body, ntype, dur)
 	
 	entry.thread = task.delay(dur, function()
 		tw(frame, 0.2, {Position = UDim2.new(1, 20, 1, targetY)})
-		task.wait(0.
+		task.wait(0.2)
+		frame:Destroy()
+		notifStack[key] = nil
+		restackNotifs()
+	end)
+end
+
+function restackNotifs()
+	local items = {}
+	for _, v in pairs(notifStack) do table.insert(items, v) end
+	table.sort(items, function(a, b) return a.targetY > b.targetY end)
+	for i, item in ipairs(items) do
+		local newY = baseY - ((i-1) * (notifHeight + 8))
+		item.targetY = newY
+		tw(item.frame, 0.2, {Position = UDim2.new(1, -310, 1, newY)})
+	end
+end
+
+getgenv()._lav_notify = notify
+
+-- CHAT COMMANDS - This is the key feature you wanted
+lp.Chatted:Connect(function(message)
+	-- Check if message starts with prefix
+	if message:sub(1, #state.prefix) == state.prefix then
+		local cmd = message:sub(#state.prefix + 1)
+		if cmd and cmd ~= "" then
+			runCmd(cmd)
+		end
+	end
+end)
+
+-- Stats loop
+local fpsBuf, fpsIdx, fpsAcc = {}, 1, 0
+for i = 1, 20 do fpsBuf[i] = 60 end
+local lastT = tick()
+
+RunService.Heartbeat:Connect(function()
+	local now = tick()
+	local dt = now - lastT
+	lastT = now
+	
+	if dt > 0 then
+		local s = 1 / dt
+		fpsAcc = fpsAcc - fpsBuf[fpsIdx] + s
+		fpsBuf[fpsIdx] = s
+		fpsIdx = fpsIdx % 20 + 1
+		local avg = fpsAcc / 20
+		fpsLbl.Text = math.floor(avg) .. " FPS"
+		fpsDot.BackgroundColor3 = avg >= 50 and C.GREEN or avg >= 30 and C.YEL or C.RED
+	end
+	
+	if tick() % 1 < 0.05 then
+		local ok, p = pcall(function() return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() end)
+		if ok then
+			pingLbl.Text = math.floor(p) .. " ms"
+			pingDot.BackgroundColor3 = p < 80 and C.BLUE or p < 150 and C.YEL or C.RED
+		end
+	end
+end)
+
+-- Death position for respawn
+local lastDeathCF = nil
+lp.CharacterAdded:Connect(function(char)
+	char:WaitForChild("Humanoid").Died:Connect(function()
+		local r = char:FindFirstChild("HumanoidRootPart")
+		if r then lastDeathCF = r.CFrame end
+	end)
+	if lastDeathCF then
+		task.wait(0.1)
+		local r = char:FindFirstChild("HumanoidRootPart")
+		if r then r.CFrame = lastDeathCF end
+	end
+end)
+
+notify("Lavender Admin", "Loaded · Prefix: " .. state.prefix, "success", 5)
+getgenv()._lav_gui_loaded = true
