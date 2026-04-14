@@ -15,7 +15,10 @@ if not getgenv()._lav_cmds then return end
 
 local CMDS   = getgenv()._lav_cmds
 local runCmd = getgenv()._lav_run
-local state  = getgenv()._lav_state or {prefix = ";"}
+local state  = getgenv()._lav_state or {prefix = ";", flySpeed = 60}
+
+-- Ensure prefix exists
+if not state.prefix then state.prefix = ";" end
 
 local function tw(obj, timeOrTweenInfo, props)
 	local tweenInfo
@@ -35,27 +38,28 @@ local function mk(cls, props, parent)
 end
 local function corner(r, p) mk("UICorner", {CornerRadius = UDim.new(0, r)}, p) end
 local function stroke(t, c, tr, p)
-	mk("UIStroke", {Thickness = t, Color = c, Transparency = tr, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, p)
+	mk("UIStroke", {Thickness = t, Color = c, Transparency = tr or 0, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, p)
 end
 
 local C = {
-	BG    = Color3.fromRGB(14, 14, 14),
-	SURF  = Color3.fromRGB(20, 20, 20),
-	SURFH = Color3.fromRGB(26, 26, 26),
-	BDR   = Color3.fromRGB(36, 36, 36),
-	TEXT  = Color3.fromRGB(210, 210, 210),
-	MUTED = Color3.fromRGB(90, 90, 90),
-	GREEN = Color3.fromRGB(72, 175, 100),
-	YEL   = Color3.fromRGB(205, 165, 55),
-	RED   = Color3.fromRGB(195, 60, 60),
-	BLUE  = Color3.fromRGB(80, 145, 200),
+	BG    = Color3.fromRGB(16, 16, 20),
+	SURF  = Color3.fromRGB(28, 28, 32),
+	SURFH = Color3.fromRGB(38, 38, 44),
+	BDR   = Color3.fromRGB(55, 55, 65),
+	TEXT  = Color3.fromRGB(240, 240, 240),
+	MUTED = Color3.fromRGB(120, 120, 130),
+	GREEN = Color3.fromRGB(80, 200, 120),
+	YEL   = Color3.fromRGB(240, 180, 60),
+	RED   = Color3.fromRGB(220, 80, 80),
+	BLUE  = Color3.fromRGB(90, 160, 230),
+	ACCENT = Color3.fromRGB(167, 139, 250),
 }
 
-local TI    = TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-local BAR_H = 50
-local SB_W  = 60
-local CW    = 520
-local PAN_H = 340
+local TI     = TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+local BAR_H  = 54
+local SB_W   = 54
+local CW     = 480
+local PAN_H  = 360
 
 local gui = mk("ScreenGui", {
 	Name = "LavenderAdmin",
@@ -64,131 +68,142 @@ local gui = mk("ScreenGui", {
 	DisplayOrder = 999,
 }, pg)
 
--- Anchor at top right
+-- Main container - positioned at top right
 local anchor = mk("Frame", {
-	Position = UDim2.new(1, -(CW + SB_W + 30), 0, 20),
-	Size = UDim2.new(0, CW + SB_W + 10, 0, BAR_H), -- L-shape height (just bar + sidebar)
+	Position = UDim2.new(1, -(CW + SB_W + 20), 0, 20),
+	Size = UDim2.new(0, CW + SB_W + 8, 0, BAR_H), -- L-shape: only topbar height
 	BackgroundTransparency = 1,
 	ClipsDescendants = false,
 }, gui)
 
--- TOP BAR (Horizontal part of L)
-local bar = mk("Frame", {
+-- Top Bar (left part of L)
+local topbar = mk("Frame", {
 	Size = UDim2.new(0, CW, 0, BAR_H),
 	BackgroundColor3 = C.BG,
-	BackgroundTransparency = 0,
 	BorderSizePixel = 0,
 }, anchor)
-corner(10, bar)
-stroke(1, C.BDR, 0, bar)
+corner(12, topbar)
+stroke(1.5, C.BDR, 0, topbar)
 
--- SIDEBAR (Vertical part of L) - Always visible, attached to right of bar
+-- Sidebar (right part of L) - attached to topbar
 local sidebar = mk("Frame", {
-	Position = UDim2.new(0, CW + 10, 0, 0),
-	Size = UDim2.new(0, SB_W, 0, BAR_H), -- Same height as bar = L shape
+	Position = UDim2.new(0, CW + 8, 0, 0),
+	Size = UDim2.new(0, SB_W, 0, BAR_H), -- Same height = L shape
 	BackgroundColor3 = C.BG,
-	BackgroundTransparency = 0,
 	BorderSizePixel = 0,
 }, anchor)
-corner(10, sidebar)
-stroke(1, C.BDR, 0, sidebar)
+corner(12, sidebar)
+stroke(1.5, C.BDR, 0, sidebar)
 
-mk("UIListLayout", {
-	Padding = UDim.new(0, 8),
-	HorizontalAlignment = Enum.HorizontalAlignment.Center,
-	VerticalAlignment = Enum.VerticalAlignment.Center,
-}, sidebar)
-
--- CONTENT PANEL (Below bar, hidden when collapsed)
-local panel = mk("Frame", {
+-- Content panel (below topbar, hidden initially)
+local content = mk("Frame", {
 	Position = UDim2.new(0, 0, 0, BAR_H + 8),
-	Size = UDim2.new(0, CW, 0, 0), -- Hidden initially
+	Size = UDim2.new(0, CW, 0, 0),
 	BackgroundColor3 = C.BG,
 	BackgroundTransparency = 1,
 	BorderSizePixel = 0,
 	ClipsDescendants = true,
 }, anchor)
-corner(10, panel)
-stroke(1, C.BDR, 0.3, panel)
+corner(12, content)
+stroke(1.5, C.BDR, 0.4, content)
 
--- Top bar contents
+-- Layout for sidebar buttons
+mk("UIListLayout", {
+	Padding = UDim.new(0, 6),
+	HorizontalAlignment = Enum.HorizontalAlignment.Center,
+	VerticalAlignment = Enum.VerticalAlignment.Center,
+}, sidebar)
+
+-- Title
 mk("TextLabel", {
-	Position = UDim2.new(0, 15, 0, 0),
-	Size = UDim2.new(0, 120, 1, 0),
+	Position = UDim2.new(0, 16, 0, 0),
+	Size = UDim2.new(0, 130, 1, 0),
 	BackgroundTransparency = 1,
 	Text = "LAVENDER",
-	TextSize = 18,
+	TextSize = 20,
 	Font = Enum.Font.GothamBlack,
-	TextColor3 = C.TEXT,
+	TextColor3 = C.ACCENT,
 	TextXAlignment = Enum.TextXAlignment.Left,
-}, bar)
+}, topbar)
 
 -- Stats
-local statsF = mk("Frame", {
-	Position = UDim2.new(0, 140, 0, 0),
-	Size = UDim2.new(0, 100, 1, 0),
-	BackgroundTransparency = 1,
-}, bar)
+local statsBox = mk("Frame", {
+	Position = UDim2.new(0, 160, 0.5, -18),
+	Size = UDim2.new(0, 110, 0, 36),
+	BackgroundColor3 = C.SURF,
+	BorderSizePixel = 0,
+}, topbar)
+corner(8, statsBox)
 
-local fpsDot = mk("Frame", {Position=UDim2.new(0,0,0,15), Size=UDim2.new(0,5,0,5), BackgroundColor3=C.GREEN, BorderSizePixel=0}, statsF)
+local fpsDot = mk("Frame", {Position=UDim2.new(0,10,0,6), Size=UDim2.new(0,6,0,6), BackgroundColor3=C.GREEN, BorderSizePixel=0}, statsBox)
 corner(3, fpsDot)
-local fpsLbl = mk("TextLabel", {Position=UDim2.new(0,10,0,8), Size=UDim2.new(0,60,0,16), BackgroundTransparency=1, Text="60 FPS", TextSize=11, Font=Enum.Font.GothamBold, TextColor3=C.TEXT, TextXAlignment=Enum.TextXAlignment.Left}, statsF)
+mk("TextLabel", {Position=UDim2.new(0,20,0,2), Size=UDim2.new(0,80,0,16), BackgroundTransparency=1, Text="60 FPS", TextSize=12, Font=Enum.Font.GothamBold, TextColor3=C.TEXT}, statsBox)
 
-local pingDot = mk("Frame", {Position=UDim2.new(0,0,0,32), Size=UDim2.new(0,5,0,5), BackgroundColor3=C.BLUE, BorderSizePixel=0}, statsF)
+local pingDot = mk("Frame", {Position=UDim2.new(0,10,0,22), Size=UDim2.new(0,6,0,6), BackgroundColor3=C.BLUE, BorderSizePixel=0}, statsBox)
 corner(3, pingDot)
-local pingLbl = mk("TextLabel", {Position=UDim2.new(0,10,0,25), Size=UDim2.new(0,60,0,16), BackgroundTransparency=1, Text="-- ms", TextSize=10, Font=Enum.Font.GothamBold, TextColor3=C.MUTED, TextXAlignment=Enum.TextXAlignment.Left}, statsF)
+mk("TextLabel", {Position=UDim2.new(0,20,0,18), Size=UDim2.new(0,80,0,16), BackgroundTransparency=1, Text="-- ms", TextSize=11, Font=Enum.Font.GothamBold, TextColor3=C.MUTED}, statsBox)
 
--- Open/Close toggle (on bar)
-local togBtn = mk("TextButton", {
-	Position = UDim2.new(1, -65, 0.5, -12),
-	Size = UDim2.new(0, 50, 0, 24),
+-- Open/Close Button
+local toggleBtn = mk("TextButton", {
+	Position = UDim2.new(1, -80, 0.5, -14),
+	Size = UDim2.new(0, 64, 0, 28),
 	BackgroundColor3 = C.SURFH,
 	Text = "OPEN",
-	TextSize = 10,
+	TextSize = 11,
 	Font = Enum.Font.GothamBlack,
 	TextColor3 = C.TEXT,
 	AutoButtonColor = false,
-}, bar)
-corner(6, togBtn)
+}, topbar)
+corner(6, toggleBtn)
 
--- Tab buttons in sidebar
-local tabBtns = {}
+-- Tab Content Container
+local tabContent = mk("Frame", {
+	Size = UDim2.new(1, -24, 1, -24),
+	Position = UDim2.new(0, 12, 0, 12),
+	BackgroundTransparency = 1,
+}, content)
+
+-- Tabs
 local tabs = {}
+local tabBtns = {}
 local activeTab = nil
 local isOpen = false
 
 local tabDefs = {
-	{name="Commands", img="rbxassetid://125186519787585"},
-	{name="Execute", img="rbxassetid://126110596194847"},
-	{name="Respawn", img="rbxassetid://76473261378555", action=true},
+	{name="Commands", icon="rbxassetid://125186519787585"},
+	{name="Execute", icon="rbxassetid://126110596194847"},
+	{name="Settings", icon="rbxassetid://126110596194847"},
+	{name="Respawn", icon="rbxassetid://76473261378555", action=true},
 }
 
-for _, d in ipairs(tabDefs) do
+-- Create sidebar buttons
+for i, d in ipairs(tabDefs) do
 	local btn = mk("ImageButton", {
 		Size = UDim2.new(0, 40, 0, 40),
-		BackgroundTransparency = 1,
 		BackgroundColor3 = C.SURFH,
-		Image = d.img,
+		BackgroundTransparency = 1,
+		Image = d.icon,
 		ImageColor3 = C.MUTED,
 		AutoButtonColor = false,
 	}, sidebar)
 	corner(8, btn)
 	tabBtns[d.name] = btn
 	
+	-- Create tab frame
 	if not d.action then
 		tabs[d.name] = mk("Frame", {
-			Size = UDim2.new(1, -24, 1, -24),
-			Position = UDim2.new(0, 12, 0, 12),
+			Size = UDim2.new(1, 0, 1, 0),
 			BackgroundTransparency = 1,
 			Visible = false,
-		}, panel)
+		}, tabContent)
 	end
 	
 	btn.MouseEnter:Connect(function()
 		if activeTab ~= d.name then
-			tw(btn, 0.15, {BackgroundTransparency = 0.6, ImageColor3 = C.TEXT})
+			tw(btn, 0.15, {BackgroundTransparency = 0.7, ImageColor3 = C.TEXT})
 		end
 	end)
+	
 	btn.MouseLeave:Connect(function()
 		if activeTab ~= d.name then
 			tw(btn, 0.15, {BackgroundTransparency = 1, ImageColor3 = C.MUTED})
@@ -207,21 +222,22 @@ for _, d in ipairs(tabDefs) do
 		end
 		
 		if not isOpen then
-			togglePanel()
+			toggleGUI()
 		end
 		
 		-- Switch tab
-		if activeTab then
-			if tabs[activeTab] then tabs[activeTab].Visible = false end
+		if activeTab and tabs[activeTab] then
+			tabs[activeTab].Visible = false
 			tw(tabBtns[activeTab], 0.15, {BackgroundTransparency = 1, ImageColor3 = C.MUTED})
 		end
+		
 		activeTab = d.name
 		tabs[d.name].Visible = true
 		tw(btn, 0.15, {BackgroundTransparency = 0.5, ImageColor3 = C.TEXT})
 	end)
 end
 
--- Build Commands Tab with rows + RUN buttons
+-- Commands Tab with rows + RUN buttons
 local cmdScroll = mk("ScrollingFrame", {
 	Size = UDim2.new(1, 0, 1, 0),
 	BackgroundTransparency = 1,
@@ -229,35 +245,32 @@ local cmdScroll = mk("ScrollingFrame", {
 	ScrollBarImageColor3 = C.BDR,
 	CanvasSize = UDim2.new(0, 0, 0, 0),
 	AutomaticCanvasSize = Enum.AutomaticSize.Y,
-}, tabs["Commands"])
+}, tabs.Commands)
 
-mk("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, cmdScroll)
+mk("UIListLayout", {Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder}, cmdScroll)
 
-local function buildCmdRow(name, cmdData)
+local function createCmdRow(name, cmdData)
 	local row = mk("Frame", {
-		Size = UDim2.new(1, -10, 0, 42),
+		Size = UDim2.new(1, -10, 0, 44),
 		BackgroundColor3 = C.SURF,
 		BorderSizePixel = 0,
 	}, cmdScroll)
 	corner(8, row)
-	stroke(1, C.BDR, 0.3, row)
 	
-	-- Command name
 	mk("TextLabel", {
 		Position = UDim2.new(0, 12, 0, 0),
-		Size = UDim2.new(0, 100, 1, 0),
+		Size = UDim2.new(0, 120, 1, 0),
 		BackgroundTransparency = 1,
 		Text = state.prefix .. name,
-		TextSize = 13,
+		TextSize = 14,
 		Font = Enum.Font.GothamBlack,
 		TextColor3 = C.TEXT,
 		TextXAlignment = Enum.TextXAlignment.Left,
 	}, row)
 	
-	-- Description
 	mk("TextLabel", {
-		Position = UDim2.new(0, 120, 0, 0),
-		Size = UDim2.new(1, -200, 1, 0),
+		Position = UDim2.new(0, 140, 0, 0),
+		Size = UDim2.new(1, -220, 1, 0),
 		BackgroundTransparency = 1,
 		Text = cmdData.desc or "",
 		TextSize = 12,
@@ -267,50 +280,32 @@ local function buildCmdRow(name, cmdData)
 		TextTruncate = Enum.TextTruncate.AtEnd,
 	}, row)
 	
-	-- RUN Button
 	local runBtn = mk("TextButton", {
-		Position = UDim2.new(1, -60, 0.5, -14),
-		Size = UDim2.new(0, 50, 0, 28),
+		Position = UDim2.new(1, -70, 0.5, -15),
+		Size = UDim2.new(0, 60, 0, 30),
 		BackgroundColor3 = C.GREEN,
-		BackgroundTransparency = 0.2,
 		Text = "RUN",
-		TextSize = 11,
+		TextSize = 12,
 		Font = Enum.Font.GothamBlack,
 		TextColor3 = C.TEXT,
 		AutoButtonColor = false,
 	}, row)
 	corner(6, runBtn)
 	
-	runBtn.MouseEnter:Connect(function()
-		tw(runBtn, 0.15, {BackgroundTransparency = 0})
-	end)
-	runBtn.MouseLeave:Connect(function()
-		tw(runBtn, 0.15, {BackgroundTransparency = 0.2})
-	end)
+	runBtn.MouseEnter:Connect(function() tw(runBtn, 0.15, {BackgroundColor3 = C.GREEN}) end)
+	runBtn.MouseLeave:Connect(function() tw(runBtn, 0.15, {BackgroundColor3 = C.GREEN}) end)
 	
 	runBtn.MouseButton1Click:Connect(function()
-		-- Click animation
-		tw(runBtn, 0.1, {Size = UDim2.new(0, 46, 0, 24), Position = UDim2.new(1, -58, 0.5, -12)})
+		tw(runBtn, 0.1, {Size = UDim2.new(0, 56, 0, 26), Position = UDim2.new(1, -68, 0.5, -13)})
 		task.wait(0.1)
-		tw(runBtn, 0.1, {Size = UDim2.new(0, 50, 0, 28), Position = UDim2.new(1, -60, 0.5, -14)})
+		tw(runBtn, 0.1, {Size = UDim2.new(0, 60, 0, 30), Position = UDim2.new(1, -70, 0.5, -15)})
 		
 		runCmd(name)
-		notify(name, "Executed", "success", 2)
+		notify(name, "Command executed", "success", 2)
 	end)
 	
-	-- Click row to fill input
-	row.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 and input.Target ~= runBtn then
-			-- Could add input filling here
-		end
-	end)
-	
-	row.MouseEnter:Connect(function()
-		tw(row, 0.2, {BackgroundColor3 = C.SURFH})
-	end)
-	row.MouseLeave:Connect(function()
-		tw(row, 0.2, {BackgroundColor3 = C.SURF})
-	end)
+	row.MouseEnter:Connect(function() tw(row, 0.2, {BackgroundColor3 = C.SURFH}) end)
+	row.MouseLeave:Connect(function() tw(row, 0.2, {BackgroundColor3 = C.SURF}) end)
 end
 
 -- Populate commands
@@ -318,26 +313,25 @@ local seen = {}
 for name, cmd in pairs(CMDS) do
 	if cmd.name == name and not seen[cmd] then
 		seen[cmd] = true
-		buildCmdRow(name, cmd)
+		createCmdRow(name, cmd)
 	end
 end
 
 -- Execute Tab
-local execBox = mk("TextBox", {
+local execInput = mk("TextBox", {
 	Size = UDim2.new(1, -80, 0, 40),
-	Position = UDim2.new(0, 0, 0, 0),
 	BackgroundColor3 = C.SURF,
-	PlaceholderText = "; command args...",
+	PlaceholderText = state.prefix .. "command args...",
 	PlaceholderColor3 = C.MUTED,
 	Text = "",
 	TextSize = 14,
-	Font = Enum.Font.Gotham,
+	Font = Enum.Font.GothamSemibold,
 	TextColor3 = C.TEXT,
 	ClearTextOnFocus = false,
-}, tabs["Execute"])
-corner(8, execBox)
-stroke(1, C.BDR, 0.3, execBox)
-mk("UIPadding", {PaddingLeft = UDim.new(0, 12)}, execBox)
+}, tabs.Execute)
+corner(8, tabs.Execute)
+stroke(1, C.BDR, 0.3, execInput)
+mk("UIPadding", {PaddingLeft = UDim.new(0, 12)}, execInput)
 
 local execBtn = mk("TextButton", {
 	Position = UDim2.new(1, -70, 0, 0),
@@ -348,59 +342,154 @@ local execBtn = mk("TextButton", {
 	Font = Enum.Font.GothamBlack,
 	TextColor3 = C.TEXT,
 	AutoButtonColor = false,
-}, tabs["Execute"])
+}, tabs.Execute)
 corner(8, execBtn)
 
 execBtn.MouseButton1Click:Connect(function()
-	local txt = execBox.Text
+	local txt = execInput.Text
 	if txt == "" then return end
 	if txt:sub(1, #state.prefix) == state.prefix then
 		txt = txt:sub(#state.prefix + 1)
 	end
 	runCmd(txt)
-	execBox.Text = ""
-	notify("Execute", txt, "info", 3)
+	execInput.Text = ""
+	notify("Executed", txt, "info", 3)
 end)
 
--- Toggle Function
-function togglePanel()
+-- Settings Tab
+local settingsScroll = mk("ScrollingFrame", {
+	Size = UDim2.new(1, 0, 1, 0),
+	BackgroundTransparency = 1,
+	ScrollBarThickness = 4,
+	ScrollBarImageColor3 = C.BDR,
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+}, tabs.Settings)
+
+mk("UIListLayout", {Padding = UDim.new(0, 10)}, settingsScroll)
+
+-- Prefix Setting
+local prefixRow = mk("Frame", {Size=UDim2.new(1,0,0,50), BackgroundColor3=C.SURF, BorderSizePixel=0}, settingsScroll)
+corner(8, prefixRow)
+mk("TextLabel", {Position=UDim2.new(0,12,0,0), Size=UDim2.new(0,100,1,0), BackgroundTransparency=1, Text="Prefix", TextSize=14, Font=Enum.Font.GothamBlack, TextColor3=C.TEXT, TextXAlignment=Enum.TextXAlignment.Left}, prefixRow)
+mk("TextLabel", {Position=UDim2.new(0,12,1,-20), Size=UDim2.new(0,200,0,16), BackgroundTransparency=1, Text="Current: " .. state.prefix, TextSize=11, Font=Enum.Font.Gotham, TextColor3=C.MUTED, TextXAlignment=Enum.TextXAlignment.Left}, prefixRow)
+
+local prefixInput = mk("TextBox", {
+	Position = UDim2.new(1, -140, 0.5, -15),
+	Size = UDim2.new(0, 50, 0, 30),
+	BackgroundColor3 = C.BG,
+	Text = state.prefix,
+	TextSize = 16,
+	Font = Enum.Font.GothamBold,
+	TextColor3 = C.ACCENT,
+}, prefixRow)
+corner(6, prefixInput)
+stroke(1, C.BDR, 0, prefixInput)
+
+local setPrefixBtn = mk("TextButton", {
+	Position = UDim2.new(1, -80, 0.5, -15),
+	Size = UDim2.new(0, 70, 0, 30),
+	BackgroundColor3 = C.ACCENT,
+	Text = "SET",
+	TextSize = 12,
+	Font = Enum.Font.GothamBlack,
+	TextColor3 = C.TEXT,
+	AutoButtonColor = false,
+}, prefixRow)
+corner(6, setPrefixBtn)
+
+setPrefixBtn.MouseButton1Click:Connect(function()
+	local newPrefix = prefixInput.Text
+	if newPrefix and #newPrefix >= 1 and #newPrefix <= 3 then
+		state.prefix = newPrefix
+		-- Update all command row texts
+		for _, child in pairs(cmdScroll:GetChildren()) do
+			if child:IsA("Frame") then
+				local lbl = child:FindFirstChildOfClass("TextLabel")
+				if lbl then
+					local cmdName = lbl.Text:gsub("^" .. state.prefix, "")
+					lbl.Text = newPrefix .. cmdName
+				end
+			end
+		end
+		execInput.PlaceholderText = newPrefix .. "command args..."
+		prefixInput.Text = newPrefix
+		prefixRow:FindFirstChildOfClass("TextLabel").Text = "Current: " .. newPrefix
+		notify("Prefix", "Changed to " .. newPrefix, "success", 3)
+	else
+		notify("Prefix", "Must be 1-3 characters", "error", 3)
+	end
+end)
+
+-- Fly Speed Setting
+local flySpeedRow = mk("Frame", {Size=UDim2.new(1,0,0,50), BackgroundColor3=C.SURF, BorderSizePixel=0}, settingsScroll)
+corner(8, flySpeedRow)
+mk("TextLabel", {Position=UDim2.new(0,12,0,0), Size=UDim2.new(0,100,1,0), BackgroundTransparency=1, Text="Fly Speed", TextSize=14, Font=Enum.Font.GothamBlack, TextColor3=C.TEXT, TextXAlignment=Enum.TextXAlignment.Left}, flySpeedRow)
+
+local flySpeedInput = mk("TextBox", {
+	Position = UDim2.new(1, -80, 0.5, -15),
+	Size = UDim2.new(0, 70, 0, 30),
+	BackgroundColor3 = C.BG,
+	Text = tostring(state.flySpeed or 60),
+	TextSize = 14,
+	Font = Enum.Font.GothamBold,
+	TextColor3 = C.TEXT,
+}, flySpeedRow)
+corner(6, flySpeedInput)
+stroke(1, C.BDR, 0, flySpeedInput)
+
+flySpeedInput.FocusLost:Connect(function()
+	local num = tonumber(flySpeedInput.Text)
+	if num and num > 0 and num <= 500 then
+		state.flySpeed = num
+		notify("Fly Speed", "Set to " .. num, "success", 3)
+	else
+		flySpeedInput.Text = tostring(state.flySpeed)
+		notify("Fly Speed", "Invalid number", "error", 3)
+	end
+end)
+
+-- Toggle function
+function toggleGUI()
 	isOpen = not isOpen
 	
 	if isOpen then
-		-- EXPAND: Show panel below, extend sidebar down
-		togBtn.Text = "CLOSE"
-		tw(togBtn, 0.2, {BackgroundColor3 = C.RED, BackgroundTransparency = 0.3})
+		toggleBtn.Text = "CLOSE"
+		tw(toggleBtn, 0.2, {BackgroundColor3 = C.RED})
 		
-		-- Resize anchor to fit everything
-		anchor.Size = UDim2.new(0, CW + SB_W + 10, 0, BAR_H + PAN_H + 10)
+		-- Expand anchor
+		anchor.Size = UDim2.new(0, CW + SB_W + 8, 0, BAR_H + PAN_H + 8)
 		
-		-- Animate panel
-		tw(panel, TI, {Size = UDim2.new(0, CW, 0, PAN_H), BackgroundTransparency = 0})
+		-- Show content
+		tw(content, TI, {Size = UDim2.new(0, CW, 0, PAN_H), BackgroundTransparency = 0})
 		
-		-- Extend sidebar down
-		tw(sidebar, TI, {Size = UDim2.new(0, SB_W, 0, BAR_H + PAN_H + 10)})
+		-- Extend sidebar
+		tw(sidebar, TI, {Size = UDim2.new(0, SB_W, 0, BAR_H + PAN_H + 8)})
 		
 		if activeTab then
 			tabs[activeTab].Visible = true
 		end
 	else
-		-- COLLAPSE: Hide panel, shrink sidebar to L-shape
-		togBtn.Text = "OPEN"
-		tw(togBtn, 0.2, {BackgroundColor3 = C.SURFH, BackgroundTransparency = 0})
+		toggleBtn.Text = "OPEN"
+		tw(toggleBtn, 0.2, {BackgroundColor3 = C.SURFH})
 		
-		tw(panel, TI, {Size = UDim2.new(0, CW, 0, 0), BackgroundTransparency = 1})
+		-- Hide content
+		tw(content, TI, {Size = UDim2.new(0, CW, 0, 0), BackgroundTransparency = 1})
+		
+		-- Shrink sidebar back to L
 		tw(sidebar, TI, {Size = UDim2.new(0, SB_W, 0, BAR_H)})
 		
-		task.delay(0.22, function()
+		task.delay(0.25, function()
 			if not isOpen then
-				anchor.Size = UDim2.new(0, CW + SB_W + 10, 0, BAR_H)
-				for _, t in pairs(tabs) do t.Visible = false end
+				anchor.Size = UDim2.new(0, CW + SB_W + 8, 0, BAR_H)
+				for _, t in pairs(tabs) do
+					if typeof(t) == "Instance" then t.Visible = false end
+				end
 			end
 		end)
 	end
 end
 
-togBtn.MouseButton1Click:Connect(togglePanel)
+toggleBtn.MouseButton1Click:Connect(toggleGUI)
 
 -- Initialize
 activeTab = "Commands"
@@ -409,8 +498,7 @@ tw(tabBtns.Commands, 0, {BackgroundTransparency = 0.5, ImageColor3 = C.TEXT})
 
 -- Notification System
 local notifStack = {}
-local notifHeight = 64
-local notifGap = 8
+local notifHeight = 70
 local baseY = -20
 
 function notify(title, body, ntype, dur)
@@ -422,8 +510,8 @@ function notify(title, body, ntype, dur)
 	if notifStack[key] then
 		local n = notifStack[key]
 		n.count += 1
-		n.countLabel.Text = n.count .. "×"
-		n.countLabel.Visible = true
+		n.countLbl.Text = n.count .. "×"
+		n.countLbl.Visible = true
 		if n.thread then task.cancel(n.thread) end
 		n.thread = task.delay(dur, function()
 			tw(n.frame, 0.2, {Position = UDim2.new(1, 20, 1, n.targetY)})
@@ -437,124 +525,58 @@ function notify(title, body, ntype, dur)
 	
 	local count = 0
 	for _ in pairs(notifStack) do count += 1 end
-	local targetY = baseY - (count * (notifHeight + notifGap))
+	local targetY = baseY - (count * (notifHeight + 8))
 	
 	local frame = mk("Frame", {
 		Position = UDim2.new(1, 20, 1, baseY),
-		Size = UDim2.new(0, 300, 0, notifHeight),
+		Size = UDim2.new(0, 280, 0, notifHeight),
 		BackgroundColor3 = C.BG,
 		BorderSizePixel = 0,
 	}, gui)
 	corner(10, frame)
-	stroke(1, accent, 0.5, frame)
+	stroke(1, accent, 0, frame)
 	
 	mk("Frame", {Size=UDim2.new(0, 3, 1, 0), BackgroundColor3=accent, BorderSizePixel=0}, frame)
 	
 	mk("TextLabel", {
 		Position = UDim2.new(0, 15, 0, 10),
-		Size = UDim2.new(1, -60, 0, 20),
+		Size = UDim2.new(1, -60, 0, 22),
 		BackgroundTransparency = 1,
 		Text = title,
-		TextSize = 13,
+		TextSize = 14,
 		Font = Enum.Font.GothamBlack,
 		TextColor3 = C.TEXT,
 		TextXAlignment = Enum.TextXAlignment.Left,
 	}, frame)
 	
 	mk("TextLabel", {
-		Position = UDim2.new(0, 15, 0, 32),
+		Position = UDim2.new(0, 15, 0, 36),
 		Size = UDim2.new(1, -60, 0, 20),
 		BackgroundTransparency = 1,
 		Text = body,
-		TextSize = 11,
+		TextSize = 12,
 		Font = Enum.Font.Gotham,
 		TextColor3 = C.MUTED,
 		TextXAlignment = Enum.TextXAlignment.Left,
 	}, frame)
 	
-	local countLabel = mk("TextLabel", {
+	local countLbl = mk("TextLabel", {
 		Position = UDim2.new(1, -45, 0.5, -10),
-		Size = UDim2.new(0, 30, 0, 20),
+		Size = UDim2.new(0, 32, 0, 22),
 		BackgroundColor3 = C.SURF,
 		Text = "1×",
-		TextSize = 11,
+		TextSize = 12,
 		Font = Enum.Font.GothamBold,
 		TextColor3 = C.TEXT,
 		Visible = false,
 	}, frame)
-	corner(4, countLabel)
+	corner(4, countLbl)
 	
-	local entry = {frame = frame, count = 1, countLabel = countLabel, targetY = targetY, key = key}
+	local entry = {frame = frame, count = 1, countLbl = countLbl, targetY = targetY}
 	notifStack[key] = entry
 	
-	tw(frame, 0.3, {Position = UDim2.new(1, -320, 1, targetY)})
+	tw(frame, 0.3, {Position = UDim2.new(1, -310, 1, targetY)})
 	
 	entry.thread = task.delay(dur, function()
 		tw(frame, 0.2, {Position = UDim2.new(1, 20, 1, targetY)})
-		task.wait(0.2)
-		frame:Destroy()
-		notifStack[key] = nil
-		restackNotifs()
-	end)
-end
-
-function restackNotifs()
-	local items = {}
-	for _, v in pairs(notifStack) do table.insert(items, v) end
-	table.sort(items, function(a, b) return a.targetY > b.targetY end)
-	
-	for i, item in ipairs(items) do
-		local newY = baseY - ((i-1) * (notifHeight + notifGap))
-		item.targetY = newY
-		tw(item.frame, 0.2, {Position = UDim2.new(1, -320, 1, newY)})
-	end
-end
-
-getgenv()._lav_notify = notify
-
--- Stats loop
-local fpsBuf, fpsIdx, fpsAcc = {}, 1, 0
-for i = 1, 20 do fpsBuf[i] = 60 end
-local lastT = tick()
-
-RunService.Heartbeat:Connect(function()
-	local now = tick()
-	local dt = now - lastT
-	lastT = now
-	
-	if dt > 0 then
-		local s = 1 / dt
-		fpsAcc = fpsAcc - fpsBuf[fpsIdx] + s
-		fpsBuf[fpsIdx] = s
-		fpsIdx = fpsIdx % 20 + 1
-		local avg = fpsAcc / 20
-		fpsLbl.Text = math.floor(avg) .. " FPS"
-		local col = avg >= 50 and C.GREEN or avg >= 30 and C.YEL or C.RED
-		fpsDot.BackgroundColor3 = col
-	end
-	
-	if tick() % 1 < 0.05 then
-		local ok, p = pcall(function() return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() end)
-		if ok then
-			pingLbl.Text = math.floor(p) .. " ms"
-			pingDot.BackgroundColor3 = p < 80 and C.BLUE or p < 150 and C.YEL or C.RED
-		end
-	end
-end)
-
--- Death pos
-local lastDeathCF = nil
-lp.CharacterAdded:Connect(function(char)
-	char:WaitForChild("Humanoid").Died:Connect(function()
-		local r = char:FindFirstChild("HumanoidRootPart")
-		if r then lastDeathCF = r.CFrame end
-	end)
-	if lastDeathCF then
-		task.wait(0.1)
-		local r = char:FindFirstChild("HumanoidRootPart")
-		if r then r.CFrame = lastDeathCF end
-	end
-end)
-
-notify("Lavender Admin", "Loaded · Prefix: " .. state.prefix, "success", 5)
-getgenv()._lav_gui_loaded = true
+		task.wait(0.
