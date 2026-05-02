@@ -1,104 +1,1292 @@
-local l={}
+local KrakenUI = {}
+local uis = game:GetService("UserInputService")
+local ts = game:GetService("TweenService")
+local rs = game:GetService("RunService")
+local players = game:GetService("Players")
+local plr = players.LocalPlayer
 
-local uis=game:GetService("UserInputService")
-local plr=game.Players.LocalPlayer
-local gui=Instance.new("ScreenGui")
-gui.Name="kr4kStyle"
-gui.Parent=plr:WaitForChild("PlayerGui")
+local ti = TweenInfo.new
+local c3 = Color3.fromRGB
+local u2 = UDim2.new
+local v2 = Vector2.new
 
-function l.Window(t)
-local f=Instance.new("Frame",gui)
-f.Size=UDim2.new(0,500,0,350)
-f.Position=UDim2.new(0.5,-250,0.5,-175)
-f.BackgroundColor3=Color3.fromRGB(25,25,25)
+local theme = {
+	bg        = c3(12,12,15),
+	sidebar   = c3(9,9,12),
+	panel     = c3(16,16,20),
+	elevated  = c3(22,22,28),
+	border    = c3(35,35,45),
+	accent    = c3(99,102,241),
+	accentDim = c3(67,70,185),
+	accentGlow= c3(139,92,246),
+	text      = c3(235,235,240),
+	subtext   = c3(140,140,160),
+	muted     = c3(70,70,90),
+	success   = c3(52,211,153),
+	danger    = c3(248,113,113),
+	warn      = c3(251,191,36),
+	white     = c3(255,255,255),
+}
 
-local tabs=Instance.new("Frame",f)
-tabs.Size=UDim2.new(0,120,1,0)
-tabs.BackgroundColor3=Color3.fromRGB(20,20,20)
-
-local cont=Instance.new("Frame",f)
-cont.Position=UDim2.new(0,120,0,0)
-cont.Size=UDim2.new(1,-120,1,0)
-cont.BackgroundTransparency=1
-
-local tb={}
-
-function tb.CreateTab(n)
-local b=Instance.new("TextButton",tabs)
-b.Size=UDim2.new(1,0,0,30)
-b.Text=n
-b.BackgroundColor3=Color3.fromRGB(30,30,30)
-
-local page=Instance.new("Frame",cont)
-page.Size=UDim2.new(1,0,1,0)
-page.Visible=false
-page.BackgroundTransparency=1
-
-b.MouseButton1Click:Connect(function()
-for _,v in pairs(cont:GetChildren()) do
-if v:IsA("Frame") then v.Visible=false end
-end
-page.Visible=true
-end)
-
-local el={}
-
-function el.CreateButton(n,cb)
-local bt=Instance.new("TextButton",page)
-bt.Size=UDim2.new(0,150,0,30)
-bt.Text=n
-bt.BackgroundColor3=Color3.fromRGB(40,40,40)
-
-bt.MouseButton1Click:Connect(function()
-pcall(cb)
-end)
+local function tween(obj, props, dur, style, dir)
+	ts:Create(obj, ti(dur or 0.18, style or Enum.EasingStyle.Quart, dir or Enum.EasingDirection.Out), props):Play()
 end
 
-function el.CreateToggle(n,cb)
-local t=false
-local bt=Instance.new("TextButton",page)
-bt.Size=UDim2.new(0,150,0,30)
-bt.Text=n.." OFF"
-
-bt.MouseButton1Click:Connect(function()
-t=not t
-bt.Text=n.." "..(t and "ON" or "OFF")
-pcall(cb,t)
-end)
+local function shadow(parent, size, trans)
+	local s = Instance.new("ImageLabel", parent)
+	s.Name = "_sh"
+	s.BackgroundTransparency = 1
+	s.Image = "rbxassetid://6014054489"
+	s.ImageColor3 = c3(0,0,0)
+	s.ImageTransparency = trans or 0.6
+	s.ScaleType = Enum.ScaleType.Slice
+	s.SliceCenter = Rect.new(49,49,450,450)
+	s.Size = u2(1, size or 24, 1, size or 24)
+	s.Position = u2(0, -(size or 24)/2, 0, -(size or 24)/2)
+	s.ZIndex = parent.ZIndex - 1
+	return s
 end
 
-function el.CreateSlider(n,min,max,cb)
-local val=min
-local bt=Instance.new("TextButton",page)
-bt.Size=UDim2.new(0,150,0,30)
-bt.Text=n..":"..val
-
-bt.MouseButton1Click:Connect(function()
-val=val+1
-if val>max then val=min end
-bt.Text=n..":"..val
-pcall(cb,val)
-end)
+local function corner(parent, rad)
+	local c = Instance.new("UICorner", parent)
+	c.CornerRadius = UDim.new(0, rad or 8)
+	return c
 end
 
-function el.CreateDropdown(n,list,cb)
-local idx=1
-local bt=Instance.new("TextButton",page)
-bt.Size=UDim2.new(0,150,0,30)
-bt.Text=n..":"..list[idx]
-
-bt.MouseButton1Click:Connect(function()
-idx=idx+1
-if idx>#list then idx=1 end
-bt.Text=n..":"..list[idx]
-pcall(cb,list[idx])
-end)
+local function stroke(parent, col, thick, trans)
+	local s = Instance.new("UIStroke", parent)
+	s.Color = col or theme.border
+	s.Thickness = thick or 1
+	s.Transparency = trans or 0
+	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	return s
 end
 
-return el
+local function pad(parent, t, b, l, r)
+	local p = Instance.new("UIPadding", parent)
+	p.PaddingTop = UDim.new(0, t or 8)
+	p.PaddingBottom = UDim.new(0, b or 8)
+	p.PaddingLeft = UDim.new(0, l or 8)
+	p.PaddingRight = UDim.new(0, r or 8)
+	return p
 end
 
-return tb
+local function listLayout(parent, dir, spacing, align)
+	local l = Instance.new("UIListLayout", parent)
+	l.FillDirection = dir or Enum.FillDirection.Vertical
+	l.SortOrder = Enum.SortOrder.LayoutOrder
+	l.Padding = UDim.new(0, spacing or 6)
+	if align then l.HorizontalAlignment = align end
+	return l
 end
 
-return l
+local function label(parent, txt, size, col, weight)
+	local l = Instance.new("TextLabel", parent)
+	l.BackgroundTransparency = 1
+	l.Text = txt or ""
+	l.TextSize = size or 13
+	l.TextColor3 = col or theme.text
+	l.Font = weight or Enum.Font.GothamMedium
+	l.TextXAlignment = Enum.TextXAlignment.Left
+	l.AutomaticSize = Enum.AutomaticSize.XY
+	return l
+end
+
+local function ripple(btn)
+	local rip = Instance.new("Frame", btn)
+	rip.Size = u2(0,0,0,0)
+	rip.Position = u2(0.5,0,0.5,0)
+	rip.AnchorPoint = v2(0.5,0.5)
+	rip.BackgroundColor3 = theme.white
+	rip.BackgroundTransparency = 0.7
+	rip.ZIndex = btn.ZIndex + 5
+	corner(rip, 999)
+	local sz = math.max(btn.AbsoluteSize.X, btn.AbsoluteSize.Y) * 2.5
+	tween(rip, {Size=u2(0,sz,0,sz), BackgroundTransparency=1}, 0.5, Enum.EasingStyle.Quad)
+	task.delay(0.52, function() rip:Destroy() end)
+end
+
+local function makeScrollFrame(parent, height)
+	local sf = Instance.new("ScrollingFrame", parent)
+	sf.Size = u2(1,0,1,height and -height or 0)
+	sf.Position = u2(0,0,0,height or 0)
+	sf.BackgroundTransparency = 1
+	sf.BorderSizePixel = 0
+	sf.ScrollBarThickness = 3
+	sf.ScrollBarImageColor3 = theme.accent
+	sf.ScrollBarImageTransparency = 0.4
+	sf.CanvasSize = u2(0,0,0,0)
+	sf.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	return sf
+end
+
+local function accentLine(parent, vert)
+	local g = Instance.new("Frame", parent)
+	if vert then
+		g.Size = u2(0,2,1,0)
+		g.Position = u2(0,0,0,0)
+	else
+		g.Size = u2(1,0,0,2)
+		g.Position = u2(0,0,0,0)
+	end
+	g.BackgroundColor3 = theme.accent
+	g.BorderSizePixel = 0
+	local grad = Instance.new("UIGradient", g)
+	grad.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, theme.accent),
+		ColorSequenceKeypoint.new(1, theme.accentGlow)
+	}
+	if vert then
+		grad.Rotation = 90
+	end
+	return g
+end
+
+local connections = {}
+local function conn(sig, fn)
+	local c = sig:Connect(fn)
+	table.insert(connections, c)
+	return c
+end
+
+local dragging, dragObj, dragStart, startPos = false, nil, nil, nil
+
+local function makeDraggable(frame, handle)
+	conn(handle.InputBegan, function(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			dragObj = frame
+			dragStart = inp.Position
+			startPos = frame.Position
+		end
+	end)
+	conn(uis.InputChanged, function(inp)
+		if dragging and dragObj == frame and inp.UserInputType == Enum.UserInputType.MouseMovement then
+			local d = inp.Position - dragStart
+			dragObj.Position = u2(
+				startPos.X.Scale,
+				startPos.X.Offset + d.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + d.Y
+			)
+		end
+	end)
+	conn(uis.InputEnded, function(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = false
+			dragObj = nil
+		end
+	end)
+end
+
+function KrakenUI.Window(cfg)
+	cfg = cfg or {}
+	local title = cfg.Title or "Kraken"
+	local subtitle = cfg.Subtitle or "v1.0"
+	local size = cfg.Size or v2(560, 420)
+	local toggleKey = cfg.ToggleKey or Enum.KeyCode.RightShift
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "KrakenUI_"..tostring(math.random(1e5,9e5))
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	gui.ResetOnSpawn = false
+	gui.DisplayOrder = 999
+	gui.Parent = plr:WaitForChild("PlayerGui")
+
+	local overlay = Instance.new("Frame", gui)
+	overlay.Size = u2(1,0,1,0)
+	overlay.BackgroundColor3 = c3(0,0,0)
+	overlay.BackgroundTransparency = 1
+	overlay.BorderSizePixel = 0
+	overlay.ZIndex = 1
+
+	local main = Instance.new("Frame", gui)
+	main.Size = u2(0, size.X, 0, size.Y)
+	main.Position = u2(0.5, -size.X/2, 0.5, -size.Y/2)
+	main.BackgroundColor3 = theme.bg
+	main.ClipsDescendants = true
+	main.ZIndex = 2
+	corner(main, 12)
+	stroke(main, theme.border, 1, 0.3)
+	shadow(main, 32, 0.4)
+
+	local blurDecor = Instance.new("Frame", main)
+	blurDecor.Size = u2(1,0,0,1)
+	blurDecor.Position = u2(0,0,0,0)
+	blurDecor.BackgroundColor3 = theme.accent
+	blurDecor.BackgroundTransparency = 0.92
+	blurDecor.ZIndex = 3
+	corner(blurDecor, 12)
+
+	local topbar = Instance.new("Frame", main)
+	topbar.Size = u2(1,0,0,48)
+	topbar.BackgroundColor3 = theme.sidebar
+	topbar.ZIndex = 4
+	corner(topbar, 0)
+	local tbCorner = Instance.new("UICorner", topbar)
+	tbCorner.CornerRadius = UDim.new(0,12)
+
+	local tbFix = Instance.new("Frame", topbar)
+	tbFix.Size = u2(1,0,0.5,0)
+	tbFix.Position = u2(0,0,0.5,0)
+	tbFix.BackgroundColor3 = theme.sidebar
+	tbFix.BorderSizePixel = 0
+	tbFix.ZIndex = 4
+
+	accentLine(topbar, false).ZIndex = 5
+
+	local logoFrame = Instance.new("Frame", topbar)
+	logoFrame.Size = u2(0,32,0,32)
+	logoFrame.Position = u2(0,12,0.5,-16)
+	logoFrame.BackgroundColor3 = theme.accent
+	logoFrame.ZIndex = 5
+	corner(logoFrame, 8)
+	local logoLabel = label(logoFrame, "K", 16, theme.white, Enum.Font.GothamBold)
+	logoLabel.Size = u2(1,0,1,0)
+	logoLabel.TextXAlignment = Enum.TextXAlignment.Center
+	logoLabel.TextYAlignment = Enum.TextYAlignment.Center
+	logoLabel.ZIndex = 6
+	local logoGrad = Instance.new("UIGradient", logoFrame)
+	logoGrad.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, theme.accent),
+		ColorSequenceKeypoint.new(1, theme.accentGlow)
+	}
+	logoGrad.Rotation = 135
+
+	local titleLbl = label(topbar, title, 15, theme.text, Enum.Font.GothamBold)
+	titleLbl.Position = u2(0,52,0.5,-14)
+	titleLbl.ZIndex = 5
+
+	local subLbl = label(topbar, subtitle, 11, theme.subtext, Enum.Font.Gotham)
+	subLbl.Position = u2(0,52,0.5,2)
+	subLbl.ZIndex = 5
+
+	local closeBtn = Instance.new("TextButton", topbar)
+	closeBtn.Size = u2(0,28,0,28)
+	closeBtn.Position = u2(1,-40,0.5,-14)
+	closeBtn.BackgroundColor3 = theme.danger
+	closeBtn.BackgroundTransparency = 0.6
+	closeBtn.Text = "✕"
+	closeBtn.TextColor3 = theme.danger
+	closeBtn.TextSize = 12
+	closeBtn.Font = Enum.Font.GothamBold
+	closeBtn.ZIndex = 5
+	corner(closeBtn, 6)
+
+	local minBtn = Instance.new("TextButton", topbar)
+	minBtn.Size = u2(0,28,0,28)
+	minBtn.Position = u2(1,-72,0.5,-14)
+	minBtn.BackgroundColor3 = theme.warn
+	minBtn.BackgroundTransparency = 0.6
+	minBtn.Text = "–"
+	minBtn.TextColor3 = theme.warn
+	minBtn.TextSize = 14
+	minBtn.Font = Enum.Font.GothamBold
+	minBtn.ZIndex = 5
+	corner(minBtn, 6)
+
+	local keyLbl = label(topbar, "["..toggleKey.Name.."]", 10, theme.muted, Enum.Font.Gotham)
+	keyLbl.Position = u2(1,-130,0.5,-6)
+	keyLbl.ZIndex = 5
+
+	makeDraggable(main, topbar)
+
+	local body = Instance.new("Frame", main)
+	body.Position = u2(0,0,0,48)
+	body.Size = u2(1,0,1,-48)
+	body.BackgroundTransparency = 1
+	body.ZIndex = 3
+
+	local sidebar = Instance.new("Frame", body)
+	sidebar.Size = u2(0,140,1,0)
+	sidebar.BackgroundColor3 = theme.sidebar
+	sidebar.ZIndex = 3
+
+	local sideStroke = Instance.new("Frame", sidebar)
+	sideStroke.Size = u2(0,1,1,0)
+	sideStroke.Position = u2(1,-1,0,0)
+	sideStroke.BackgroundColor3 = theme.border
+	sideStroke.BorderSizePixel = 0
+	sideStroke.ZIndex = 4
+
+	local sideScroll = makeScrollFrame(sidebar, 0)
+	sideScroll.Size = u2(1,0,1,0)
+	pad(sideScroll, 8, 8, 0, 0)
+	local sideList = listLayout(sideScroll, nil, 3)
+	sideList.Padding = UDim.new(0, 3)
+
+	local content = Instance.new("Frame", body)
+	content.Position = u2(0,140,0,0)
+	content.Size = u2(1,-140,1,0)
+	content.BackgroundTransparency = 1
+	content.ZIndex = 3
+	content.ClipsDescendants = true
+
+	local W = {}
+	local tabPages = {}
+	local tabBtns = {}
+	local activeTab = nil
+
+	local function selectTab(name)
+		if activeTab == name then return end
+		activeTab = name
+		for n, page in pairs(tabPages) do
+			if n == name then
+				page.Visible = true
+				tween(page, {BackgroundTransparency=1}, 0.12)
+				local btn = tabBtns[n]
+				if btn then
+					tween(btn, {BackgroundColor3=theme.elevated, BackgroundTransparency=0}, 0.15)
+					tween(btn._lbl, {TextColor3=theme.text}, 0.15)
+					tween(btn._bar, {BackgroundTransparency=0}, 0.15)
+				end
+			else
+				tween(page, {BackgroundTransparency=1}, 0.08)
+				task.delay(0.08, function() if page and page.Parent then page.Visible = false end end)
+				local btn = tabBtns[n]
+				if btn then
+					tween(btn, {BackgroundColor3=theme.sidebar, BackgroundTransparency=1}, 0.15)
+					tween(btn._lbl, {TextColor3=theme.subtext}, 0.15)
+					tween(btn._bar, {BackgroundTransparency=1}, 0.15)
+				end
+			end
+		end
+	end
+
+	function W:CreateTab(name, icon)
+		local page = Instance.new("Frame", content)
+		page.Size = u2(1,0,1,0)
+		page.BackgroundTransparency = 1
+		page.Visible = false
+		page.ZIndex = 4
+		page.ClipsDescendants = true
+
+		local scroll = makeScrollFrame(page, 0)
+		scroll.Size = u2(1,-2,1,0)
+		scroll.Position = u2(0,0,0,0)
+		pad(scroll, 10, 10, 10, 10)
+		local innerList = listLayout(scroll, nil, 6)
+		innerList.Padding = UDim.new(0, 6)
+
+		local tabBtn = Instance.new("TextButton", sideScroll)
+		tabBtn.Size = u2(1,-16,0,36)
+		tabBtn.BackgroundColor3 = theme.sidebar
+		tabBtn.BackgroundTransparency = 1
+		tabBtn.Text = ""
+		tabBtn.ZIndex = 5
+		tabBtn.ClipsDescendants = true
+		corner(tabBtn, 7)
+
+		local btnPad = Instance.new("UIPadding", tabBtn)
+		btnPad.PaddingLeft = UDim.new(0,10)
+
+		local bar = Instance.new("Frame", tabBtn)
+		bar.Size = u2(0,3,0.7,0)
+		bar.Position = u2(0,-10,0.15,0)
+		bar.BackgroundColor3 = theme.accent
+		bar.BorderSizePixel = 0
+		bar.BackgroundTransparency = 1
+		bar.ZIndex = 6
+		corner(bar, 999)
+		local barGrad = Instance.new("UIGradient", bar)
+		barGrad.Color = ColorSequence.new{
+			ColorSequenceKeypoint.new(0, theme.accent),
+			ColorSequenceKeypoint.new(1, theme.accentGlow)
+		}
+		barGrad.Rotation = 90
+
+		local icoLbl = label(tabBtn, icon or "◈", 13, theme.subtext, Enum.Font.GothamMedium)
+		icoLbl.Position = u2(0,0,0.5,-7)
+		icoLbl.ZIndex = 6
+
+		local nameLbl = label(tabBtn, name, 12, theme.subtext, Enum.Font.GothamMedium)
+		nameLbl.Position = u2(0,20,0.5,-7)
+		nameLbl.ZIndex = 6
+
+		tabBtn._lbl = nameLbl
+		tabBtn._bar = bar
+
+		tabBtns[name] = tabBtn
+		tabPages[name] = page
+
+		conn(tabBtn.MouseButton1Click, function()
+			ripple(tabBtn)
+			selectTab(name)
+		end)
+		conn(tabBtn.MouseEnter, function()
+			if activeTab ~= name then
+				tween(tabBtn, {BackgroundTransparency=0.6}, 0.12)
+			end
+		end)
+		conn(tabBtn.MouseLeave, function()
+			if activeTab ~= name then
+				tween(tabBtn, {BackgroundTransparency=1}, 0.12)
+			end
+		end)
+
+		if not activeTab then
+			selectTab(name)
+		end
+
+		local T = {}
+		local elementOrder = 0
+
+		local function nextOrder()
+			elementOrder += 1
+			return elementOrder
+		end
+
+		local function sectionContainer(sectionName)
+			local sec = Instance.new("Frame", scroll)
+			sec.Size = u2(1,-2,0,0)
+			sec.AutomaticSize = Enum.AutomaticSize.Y
+			sec.BackgroundColor3 = theme.panel
+			sec.LayoutOrder = nextOrder()
+			sec.ZIndex = 5
+			corner(sec, 10)
+			stroke(sec, theme.border, 1, 0.5)
+
+			local secHeader = Instance.new("Frame", sec)
+			secHeader.Size = u2(1,0,0,30)
+			secHeader.BackgroundTransparency = 1
+			secHeader.ZIndex = 6
+
+			local secLine = accentLine(secHeader, false)
+			secLine.Size = u2(0,24,0,2)
+			secLine.Position = u2(0,12,1,-2)
+			secLine.ZIndex = 7
+
+			local secLbl = label(secHeader, sectionName, 11, theme.subtext, Enum.Font.GothamBold)
+			secLbl.Position = u2(0,12,0.5,-6)
+			secLbl.TextSize = 10
+			secLbl.ZIndex = 7
+
+			local secDiv = Instance.new("Frame", sec)
+			secDiv.Size = u2(1,-24,0,1)
+			secDiv.Position = u2(0,12,0,30)
+			secDiv.BackgroundColor3 = theme.border
+			secDiv.BorderSizePixel = 0
+			secDiv.BackgroundTransparency = 0.4
+			secDiv.ZIndex = 6
+
+			local secContent = Instance.new("Frame", sec)
+			secContent.Size = u2(1,0,0,0)
+			secContent.Position = u2(0,0,0,36)
+			secContent.AutomaticSize = Enum.AutomaticSize.Y
+			secContent.BackgroundTransparency = 1
+			secContent.ZIndex = 6
+			pad(secContent, 6, 10, 12, 12)
+			listLayout(secContent, nil, 6).Padding = UDim.new(0,6)
+
+			return sec, secContent
+		end
+
+		function T:CreateSection(sectionName)
+			local sec, secContent = sectionContainer(sectionName)
+			local S = {}
+			local secOrder = 0
+			local function so() secOrder += 1; return secOrder end
+
+			function S:CreateButton(cfg2)
+				cfg2 = type(cfg2)=="string" and {Title=cfg2} or cfg2
+				local n = cfg2.Title or "Button"
+				local cb = cfg2.Callback or function() end
+				local desc = cfg2.Description
+
+				local row = Instance.new("Frame", secContent)
+				row.Size = u2(1,0,0,desc and 52 or 36)
+				row.BackgroundColor3 = theme.elevated
+				row.LayoutOrder = so()
+				row.ZIndex = 7
+				corner(row, 7)
+				stroke(row, theme.border, 1, 0.6)
+
+				local lbl = label(row, n, 13, theme.text, Enum.Font.GothamMedium)
+				lbl.Position = u2(0,12,0, desc and 8 or 10)
+				lbl.ZIndex = 8
+
+				if desc then
+					local dlbl = label(row, desc, 10, theme.subtext, Enum.Font.Gotham)
+					dlbl.Position = u2(0,12,0,26)
+					dlbl.ZIndex = 8
+				end
+
+				local execBtn = Instance.new("TextButton", row)
+				execBtn.Size = u2(0,70,0,26)
+				execBtn.Position = u2(1,-78,0.5,-13)
+				execBtn.BackgroundColor3 = theme.accent
+				execBtn.Text = "Execute"
+				execBtn.TextColor3 = theme.white
+				execBtn.TextSize = 11
+				execBtn.Font = Enum.Font.GothamBold
+				execBtn.ZIndex = 8
+				corner(execBtn, 6)
+				local eg = Instance.new("UIGradient", execBtn)
+				eg.Color = ColorSequence.new{
+					ColorSequenceKeypoint.new(0, theme.accent),
+					ColorSequenceKeypoint.new(1, theme.accentGlow)
+				}
+				eg.Rotation = 135
+
+				conn(execBtn.MouseButton1Click, function()
+					ripple(execBtn)
+					tween(execBtn, {BackgroundTransparency=0.3}, 0.08)
+					task.delay(0.15, function() tween(execBtn, {BackgroundTransparency=0}, 0.1) end)
+					task.spawn(cb)
+				end)
+				conn(execBtn.MouseEnter, function() tween(execBtn, {Size=u2(0,74,0,28), Position=u2(1,-80,0.5,-14)}, 0.1) end)
+				conn(execBtn.MouseLeave, function() tween(execBtn, {Size=u2(0,70,0,26), Position=u2(1,-78,0.5,-13)}, 0.1) end)
+				conn(row.MouseEnter, function() tween(row, {BackgroundColor3=c3(26,26,34)}, 0.1) end)
+				conn(row.MouseLeave, function() tween(row, {BackgroundColor3=theme.elevated}, 0.1) end)
+			end
+
+			function S:CreateToggle(cfg2)
+				cfg2 = type(cfg2)=="string" and {Title=cfg2} or cfg2
+				local n = cfg2.Title or "Toggle"
+				local def = cfg2.Default or false
+				local desc = cfg2.Description
+				local cb = cfg2.Callback or function() end
+
+				local state = def
+				local row = Instance.new("Frame", secContent)
+				row.Size = u2(1,0,0,desc and 52 or 36)
+				row.BackgroundColor3 = theme.elevated
+				row.LayoutOrder = so()
+				row.ZIndex = 7
+				corner(row, 7)
+				stroke(row, theme.border, 1, 0.6)
+
+				local lbl = label(row, n, 13, theme.text, Enum.Font.GothamMedium)
+				lbl.Position = u2(0,12,0, desc and 8 or 10)
+				lbl.ZIndex = 8
+
+				if desc then
+					local dlbl = label(row, desc, 10, theme.subtext, Enum.Font.Gotham)
+					dlbl.Position = u2(0,12,0,26)
+					dlbl.ZIndex = 8
+				end
+
+				local track = Instance.new("TextButton", row)
+				track.Size = u2(0,44,0,24)
+				track.Position = u2(1,-56,0.5,-12)
+				track.BackgroundColor3 = state and theme.accent or theme.muted
+				track.Text = ""
+				track.ZIndex = 8
+				corner(track, 999)
+
+				local knob = Instance.new("Frame", track)
+				knob.Size = u2(0,18,0,18)
+				knob.Position = u2(0, state and 23 or 3, 0.5,-9)
+				knob.BackgroundColor3 = theme.white
+				knob.ZIndex = 9
+				corner(knob, 999)
+				shadow(knob, 6, 0.5)
+
+				local function setToggle(v, silent)
+					state = v
+					tween(track, {BackgroundColor3 = v and theme.accent or theme.muted}, 0.2)
+					tween(knob, {Position = u2(0, v and 23 or 3, 0.5, -9)}, 0.2, Enum.EasingStyle.Back)
+					if not silent then task.spawn(cb, v) end
+				end
+				setToggle(def, true)
+
+				conn(track.MouseButton1Click, function() setToggle(not state) end)
+				conn(row.InputBegan, function(inp)
+					if inp.UserInputType == Enum.UserInputType.MouseButton1 then setToggle(not state) end
+				end)
+				conn(row.MouseEnter, function() tween(row, {BackgroundColor3=c3(26,26,34)}, 0.1) end)
+				conn(row.MouseLeave, function() tween(row, {BackgroundColor3=theme.elevated}, 0.1) end)
+
+				local obj = {Value=state}
+				function obj:Set(v) setToggle(v, false) end
+				return obj
+			end
+
+			function S:CreateSlider(cfg2)
+				cfg2 = type(cfg2)=="string" and {Title=cfg2} or cfg2
+				local n = cfg2.Title or "Slider"
+				local min = cfg2.Min or 0
+				local max = cfg2.Max or 100
+				local def = cfg2.Default or min
+				local suffix = cfg2.Suffix or ""
+				local cb = cfg2.Callback or function() end
+
+				local val = math.clamp(def, min, max)
+				local draggingSlider = false
+
+				local row = Instance.new("Frame", secContent)
+				row.Size = u2(1,0,0,54)
+				row.BackgroundColor3 = theme.elevated
+				row.LayoutOrder = so()
+				row.ZIndex = 7
+				corner(row, 7)
+				stroke(row, theme.border, 1, 0.6)
+
+				local header = Instance.new("Frame", row)
+				header.Size = u2(1,0,0,24)
+				header.BackgroundTransparency = 1
+				header.ZIndex = 8
+				pad(header, 8, 0, 12, 12)
+
+				local nlbl = label(header, n, 12, theme.text, Enum.Font.GothamMedium)
+				nlbl.ZIndex = 9
+
+				local vlbl = label(header, tostring(val)..suffix, 12, theme.accent, Enum.Font.GothamBold)
+				vlbl.Size = u2(1,0,1,0)
+				vlbl.TextXAlignment = Enum.TextXAlignment.Right
+				vlbl.ZIndex = 9
+
+				local trackBg = Instance.new("Frame", row)
+				trackBg.Size = u2(1,-24,0,6)
+				trackBg.Position = u2(0,12,0,36)
+				trackBg.BackgroundColor3 = theme.bg
+				trackBg.ZIndex = 8
+				corner(trackBg, 999)
+
+				local fill = Instance.new("Frame", trackBg)
+				fill.Size = u2((val-min)/(max-min),0,1,0)
+				fill.BackgroundColor3 = theme.accent
+				fill.ZIndex = 9
+				corner(fill, 999)
+				local fillGrad = Instance.new("UIGradient", fill)
+				fillGrad.Color = ColorSequence.new{
+					ColorSequenceKeypoint.new(0, theme.accent),
+					ColorSequenceKeypoint.new(1, theme.accentGlow)
+				}
+
+				local dot = Instance.new("Frame", trackBg)
+				dot.Size = u2(0,14,0,14)
+				dot.Position = u2((val-min)/(max-min),0,0.5,-7)
+				dot.AnchorPoint = v2(0.5,0.5)
+				dot.BackgroundColor3 = theme.white
+				dot.ZIndex = 10
+				corner(dot, 999)
+				shadow(dot, 6, 0.5)
+
+				local function setSlider(newVal, silent)
+					val = math.clamp(math.floor(newVal), min, max)
+					local pct = (val-min)/(max-min)
+					tween(fill, {Size=u2(pct,0,1,0)}, 0.05)
+					tween(dot, {Position=u2(pct,0,0.5,-7)}, 0.05)
+					vlbl.Text = tostring(val)..suffix
+					if not silent then task.spawn(cb, val) end
+				end
+
+				local inputBox = Instance.new("TextBox", row)
+				inputBox.Size = u2(0,52,0,20)
+				inputBox.Position = u2(1,-56, 0, 4)
+				inputBox.BackgroundColor3 = theme.bg
+				inputBox.TextColor3 = theme.accent
+				inputBox.Text = tostring(val)
+				inputBox.TextSize = 12
+				inputBox.Font = Enum.Font.GothamBold
+				inputBox.PlaceholderText = "0"
+				inputBox.ZIndex = 9
+				corner(inputBox, 5)
+				stroke(inputBox, theme.border, 1, 0.5)
+				inputBox.TextXAlignment = Enum.TextXAlignment.Center
+
+				conn(inputBox.FocusLost, function(enter)
+					if enter then
+						local n2 = tonumber(inputBox.Text)
+						if n2 then setSlider(n2) end
+					end
+					inputBox.Text = tostring(val)
+				end)
+
+				local function handleDrag(input)
+					local abs = trackBg.AbsolutePosition.X
+					local szx = trackBg.AbsoluteSize.X
+					local pct = math.clamp((input.Position.X - abs) / szx, 0, 1)
+					setSlider(min + pct*(max-min))
+				end
+
+				conn(trackBg.InputBegan, function(inp)
+					if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+						draggingSlider = true
+						handleDrag(inp)
+					end
+				end)
+				conn(uis.InputChanged, function(inp)
+					if draggingSlider and inp.UserInputType == Enum.UserInputType.MouseMovement then
+						handleDrag(inp)
+					end
+				end)
+				conn(uis.InputEnded, function(inp)
+					if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+						draggingSlider = false
+					end
+				end)
+				conn(dot.InputBegan, function(inp)
+					if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+						draggingSlider = true
+					end
+				end)
+				conn(row.MouseEnter, function() tween(row, {BackgroundColor3=c3(26,26,34)}, 0.1) end)
+				conn(row.MouseLeave, function() tween(row, {BackgroundColor3=theme.elevated}, 0.1) end)
+
+				local obj = {Value=val}
+				function obj:Set(v) setSlider(v) end
+				return obj
+			end
+
+			function S:CreateDropdown(cfg2)
+				cfg2 = type(cfg2)=="string" and {Title=cfg2} or cfg2
+				local n = cfg2.Title or "Dropdown"
+				local opts = cfg2.Options or {}
+				local def = cfg2.Default or opts[1]
+				local cb = cfg2.Callback or function() end
+				local multi = cfg2.MultiSelect or false
+
+				local selected = multi and {} or def
+				local open = false
+
+				local wrap = Instance.new("Frame", secContent)
+				wrap.Size = u2(1,0,0,36)
+				wrap.BackgroundTransparency = 1
+				wrap.LayoutOrder = so()
+				wrap.ZIndex = 7
+				wrap.ClipsDescendants = false
+
+				local row = Instance.new("Frame", wrap)
+				row.Size = u2(1,0,0,36)
+				row.BackgroundColor3 = theme.elevated
+				row.ZIndex = 7
+				corner(row, 7)
+				stroke(row, theme.border, 1, 0.6)
+				row.ClipsDescendants = true
+
+				local lbl = label(row, n, 12, theme.text, Enum.Font.GothamMedium)
+				lbl.Position = u2(0,12,0.5,-7)
+				lbl.ZIndex = 8
+
+				local selLbl = label(row, multi and "None" or (def or "Select..."), 12, theme.accent, Enum.Font.Gotham)
+				selLbl.Size = u2(1,-90,1,0)
+				selLbl.Position = u2(0,90,0,0)
+				selLbl.TextXAlignment = Enum.TextXAlignment.Right
+				selLbl.ZIndex = 8
+
+				local arr = label(row, "▾", 12, theme.subtext, Enum.Font.GothamBold)
+				arr.Size = u2(0,20,1,0)
+				arr.Position = u2(1,-28,0,0)
+				arr.TextXAlignment = Enum.TextXAlignment.Center
+				arr.TextYAlignment = Enum.TextYAlignment.Center
+				arr.ZIndex = 8
+
+				local dropdown = Instance.new("Frame", wrap)
+				dropdown.Size = u2(1,0,0,0)
+				dropdown.Position = u2(0,0,0,38)
+				dropdown.BackgroundColor3 = theme.elevated
+				dropdown.ZIndex = 15
+				dropdown.Visible = false
+				dropdown.ClipsDescendants = true
+				corner(dropdown, 7)
+				stroke(dropdown, theme.accent, 1, 0.5)
+				shadow(dropdown, 12, 0.5)
+
+				local dScroll = makeScrollFrame(dropdown, 0)
+				dScroll.Size = u2(1,0,1,0)
+				pad(dScroll, 4, 4, 4, 4)
+				listLayout(dScroll, nil, 2)
+
+				local optBtns = {}
+
+				local function refreshLabel()
+					if multi then
+						local keys = {}
+						for k in pairs(selected) do table.insert(keys, k) end
+						selLbl.Text = #keys==0 and "None" or table.concat(keys,", ")
+					else
+						selLbl.Text = selected or "Select..."
+					end
+				end
+
+				local function makeOption(opt)
+					local ob = Instance.new("TextButton", dScroll)
+					ob.Size = u2(1,0,0,28)
+					ob.BackgroundColor3 = theme.elevated
+					ob.BackgroundTransparency = 1
+					ob.Text = ""
+					ob.ZIndex = 16
+					corner(ob, 5)
+
+					local ol = label(ob, opt, 12, theme.text, Enum.Font.Gotham)
+					ol.Position = u2(0,10,0.5,-7)
+					ol.ZIndex = 17
+
+					local check = label(ob, "✓", 12, theme.accent, Enum.Font.GothamBold)
+					check.Size = u2(0,20,1,0)
+					check.Position = u2(1,-26,0,0)
+					check.TextXAlignment = Enum.TextXAlignment.Center
+					check.TextYAlignment = Enum.TextYAlignment.Center
+					check.TextTransparency = 1
+					check.ZIndex = 17
+
+					local function isSelected()
+						return multi and selected[opt] or selected==opt
+					end
+
+					local function refreshOpt()
+						local sel = isSelected()
+						tween(ob, {BackgroundTransparency = sel and 0.6 or 1}, 0.1)
+						tween(ob, {BackgroundColor3 = sel and theme.accentDim or theme.elevated}, 0.1)
+						tween(ol, {TextColor3 = sel and theme.white or theme.text}, 0.1)
+						tween(check, {TextTransparency = sel and 0 or 1}, 0.1)
+					end
+					refreshOpt()
+
+					conn(ob.MouseButton1Click, function()
+						ripple(ob)
+						if multi then
+							selected[opt] = not selected[opt] or nil
+							refreshOpt()
+							refreshLabel()
+							local keys = {}
+							for k in pairs(selected) do table.insert(keys, k) end
+							task.spawn(cb, keys)
+						else
+							selected = opt
+							for _, v in pairs(optBtns) do v() end
+							refreshLabel()
+							task.spawn(cb, opt)
+						end
+					end)
+
+					optBtns[opt] = refreshOpt
+					conn(ob.MouseEnter, function() tween(ob, {BackgroundTransparency = isSelected() and 0.5 or 0.8}, 0.08) end)
+					conn(ob.MouseLeave, function() tween(ob, {BackgroundTransparency = isSelected() and 0.6 or 1}, 0.08) end)
+				end
+
+				for _, o in ipairs(opts) do makeOption(o) end
+
+				local function toggleDropdown()
+					open = not open
+					if open then
+						local targetH = math.min(#opts * 30 + 8, 160)
+						dropdown.Visible = true
+						dropdown.Size = u2(1,0,0,0)
+						tween(dropdown, {Size=u2(1,0,0,targetH)}, 0.2, Enum.EasingStyle.Back)
+						tween(arr, {Rotation=180}, 0.2)
+						wrap.Size = u2(1,0,0, 38 + targetH)
+					else
+						tween(dropdown, {Size=u2(1,0,0,0)}, 0.15)
+						tween(arr, {Rotation=0}, 0.15)
+						task.delay(0.16, function() if not open then dropdown.Visible = false end end)
+						wrap.Size = u2(1,0,0,36)
+					end
+				end
+
+				conn(row.InputBegan, function(inp)
+					if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+						toggleDropdown()
+					end
+				end)
+				conn(row.MouseEnter, function() tween(row, {BackgroundColor3=c3(26,26,34)}, 0.1) end)
+				conn(row.MouseLeave, function() tween(row, {BackgroundColor3=theme.elevated}, 0.1) end)
+
+				local obj = {Value=selected}
+				function obj:Set(v)
+					if multi then selected = {}; for _, k in ipairs(v) do selected[k]=true end
+					else selected=v end
+					for _, fn in pairs(optBtns) do fn() end
+					refreshLabel()
+				end
+				function obj:Refresh(newOpts)
+					for _, c in pairs(dScroll:GetChildren()) do
+						if c:IsA("TextButton") then c:Destroy() end
+					end
+					table.clear(optBtns)
+					opts = newOpts
+					for _, o in ipairs(opts) do makeOption(o) end
+				end
+				return obj
+			end
+
+			function S:CreateInput(cfg2)
+				cfg2 = type(cfg2)=="string" and {Title=cfg2} or cfg2
+				local n = cfg2.Title or "Input"
+				local placeholder = cfg2.Placeholder or "Type here..."
+				local cb = cfg2.Callback or function() end
+				local numeric = cfg2.Numeric or false
+
+				local row = Instance.new("Frame", secContent)
+				row.Size = u2(1,0,0,36)
+				row.BackgroundColor3 = theme.elevated
+				row.LayoutOrder = so()
+				row.ZIndex = 7
+				corner(row, 7)
+				stroke(row, theme.border, 1, 0.6)
+
+				local lbl = label(row, n, 12, theme.text, Enum.Font.GothamMedium)
+				lbl.Position = u2(0,12,0.5,-7)
+				lbl.ZIndex = 8
+
+				local box = Instance.new("TextBox", row)
+				box.Size = u2(0,160,0,24)
+				box.Position = u2(1,-168,0.5,-12)
+				box.BackgroundColor3 = theme.bg
+				box.TextColor3 = theme.text
+				box.PlaceholderText = placeholder
+				box.PlaceholderColor3 = theme.muted
+				box.Text = cfg2.Default or ""
+				box.TextSize = 12
+				box.Font = Enum.Font.Gotham
+				box.ZIndex = 8
+				box.ClearTextOnFocus = false
+				corner(box, 5)
+				stroke(box, theme.border, 1, 0.5)
+				pad(box, 0, 0, 8, 8)
+
+				conn(box.Focused, function() tween(box, {BackgroundColor3=c3(20,20,28)}, 0.12) end)
+				conn(box.FocusLost, function(enter)
+					tween(box, {BackgroundColor3=theme.bg}, 0.12)
+					if enter then
+						if numeric then
+							local v = tonumber(box.Text)
+							if v then task.spawn(cb, v) end
+						else
+							task.spawn(cb, box.Text)
+						end
+					end
+				end)
+				conn(row.MouseEnter, function() tween(row, {BackgroundColor3=c3(26,26,34)}, 0.1) end)
+				conn(row.MouseLeave, function() tween(row, {BackgroundColor3=theme.elevated}, 0.1) end)
+
+				local obj = {}
+				function obj:Set(v) box.Text = tostring(v) end
+				function obj:Get() return box.Text end
+				return obj
+			end
+
+			function S:CreateKeybind(cfg2)
+				cfg2 = type(cfg2)=="string" and {Title=cfg2} or cfg2
+				local n = cfg2.Title or "Keybind"
+				local def = cfg2.Default or Enum.KeyCode.Unknown
+				local cb = cfg2.Callback or function() end
+
+				local bound = def
+				local listening = false
+
+				local row = Instance.new("Frame", secContent)
+				row.Size = u2(1,0,0,36)
+				row.BackgroundColor3 = theme.elevated
+				row.LayoutOrder = so()
+				row.ZIndex = 7
+				corner(row, 7)
+				stroke(row, theme.border, 1, 0.6)
+
+				local lbl = label(row, n, 12, theme.text, Enum.Font.GothamMedium)
+				lbl.Position = u2(0,12,0.5,-7)
+				lbl.ZIndex = 8
+
+				local kbtn = Instance.new("TextButton", row)
+				kbtn.Size = u2(0,90,0,24)
+				kbtn.Position = u2(1,-98,0.5,-12)
+				kbtn.BackgroundColor3 = theme.bg
+				kbtn.Text = def.Name
+				kbtn.TextColor3 = theme.accent
+				kbtn.TextSize = 11
+				kbtn.Font = Enum.Font.GothamBold
+				kbtn.ZIndex = 8
+				corner(kbtn, 5)
+				stroke(kbtn, theme.border, 1, 0.5)
+
+				conn(kbtn.MouseButton1Click, function()
+					listening = true
+					kbtn.Text = "..."
+					tween(kbtn, {BackgroundColor3=theme.accentDim}, 0.1)
+				end)
+
+				conn(uis.InputBegan, function(inp, gp)
+					if not listening then
+						if inp.KeyCode == bound then task.spawn(cb) end
+						return
+					end
+					if inp.UserInputType == Enum.UserInputType.Keyboard and inp.KeyCode ~= Enum.KeyCode.Unknown then
+						listening = false
+						bound = inp.KeyCode
+						kbtn.Text = inp.KeyCode.Name
+						tween(kbtn, {BackgroundColor3=theme.bg}, 0.1)
+					end
+				end)
+				conn(row.MouseEnter, function() tween(row, {BackgroundColor3=c3(26,26,34)}, 0.1) end)
+				conn(row.MouseLeave, function() tween(row, {BackgroundColor3=theme.elevated}, 0.1) end)
+
+				local obj = {Value=bound}
+				function obj:Set(key) bound=key; kbtn.Text=key.Name end
+				return obj
+			end
+
+			function S:CreateColorPicker(cfg2)
+				cfg2 = type(cfg2)=="string" and {Title=cfg2} or cfg2
+				local n = cfg2.Title or "Color"
+				local def = cfg2.Default or c3(99,102,241)
+				local cb = cfg2.Callback or function() end
+
+				local h,s,v2val = Color3.toHSV(def)
+				local currentColor = def
+				local pickerOpen = false
+				local draggingSv, draggingH = false, false
+
+				local wrap = Instance.new("Frame", secContent)
+				wrap.Size = u2(1,0,0,36)
+				wrap.BackgroundTransparency = 1
+				wrap.LayoutOrder = so()
+				wrap.ZIndex = 7
+				wrap.ClipsDescendants = false
+
+				local row = Instance.new("Frame", wrap)
+				row.Size = u2(1,0,0,36)
+				row.BackgroundColor3 = theme.elevated
+				row.ZIndex = 7
+				corner(row, 7)
+				stroke(row, theme.border, 1, 0.6)
+
+				local lbl = label(row, n, 12, theme.text, Enum.Font.GothamMedium)
+				lbl.Position = u2(0,12,0.5,-7)
+				lbl.ZIndex = 8
+
+				local preview = Instance.new("Frame", row)
+				preview.Size = u2(0,60,0,22)
+				preview.Position = u2(1,-70,0.5,-11)
+				preview.BackgroundColor3 = currentColor
+				preview.ZIndex = 8
+				corner(preview, 5)
+				stroke(preview, theme.border, 1, 0.4)
+
+				local picker = Instance.new("Frame", wrap)
+				picker.Size = u2(1,0,0,0)
+				picker.Position = u2(0,0,0,38)
+				picker.BackgroundColor3 = theme.elevated
+				picker.ZIndex = 15
+				picker.Visible = false
+				picker.ClipsDescendants = true
+				corner(picker, 8)
+				stroke(picker, theme.accent, 1, 0.5)
+				shadow(picker, 12, 0.5)
+
+				local svFrame = Instance.new("Frame", picker)
+				svFrame.Size = u2(1,-56,0,120)
+				svFrame.Position = u2(0,8,0,8)
+				svFrame.ZIndex = 16
+				corner(svFrame, 6)
+
+				local svColor = Instance.new("UIGradient", svFrame)
+				svColor.Color = ColorSequence.new{
+					ColorSequenceKeypoint.new(0, c3(255,255,255)),
+					ColorSequenceKeypoint.new(1, Color3.fromHSV(h,1,1))
+				}
+
+				local svDark = Instance.new("Frame", svFrame)
+				svDark.Size = u2(1,0,1,0)
+				svDark.BackgroundColor3 = c3(0,0,0)
+				svDark.BackgroundTransparency = 0
+				svDark.ZIndex = 17
+				corner(svDark, 6)
+				local svDarkGrad = Instance.new("UIGradient", svDark)
+				svDarkGrad.Color = ColorSequence.new{
+					ColorSequenceKeypoint.new(0, Color3.new(0,0,0)),
+					ColorSequenceKeypoint.new(1, Color3.new(0,0,0))
+				}
+				svDarkGrad.Transparency = NumberSequence.new{
+					NumberSequenceKeypoint.new(0, 1),
+					NumberSequenceKeypoint.new(1, 0)
+				}
+				svDarkGrad.Rotation = 90
+
+				local svDot = Instance.new("Frame", svFrame)
+				svDot.Size = u2(0,12,0,12)
+				svDot.AnchorPoint = v2(0.5,0.5)
+				svDot.Position = u2(s,0,1-v2val,0)
+				svDot.BackgroundColor3 = theme.white
+				svDot.ZIndex = 19
+				corner(svDot, 999)
+				stroke(svDot, theme.white, 2, 0)
+
+				local hueBar = Instance.new("Frame", picker)
+				hueBar.Size = u2(0,16,0,120)
+				hueBar.Position = u2(1,-32,0,8)
+				hueBar.ZIndex = 16
+				corner(hueBar, 4)
+
+				local hueGrad = Instance.new("UIGradient", hueBar)
+				hueGrad.Color = ColorSequence.new{
+					ColorSequenceKeypoint.new(0, c3(255,0,0)),
+					ColorSequenceKeypoint.new(0.166, c3(255,255,0)),
+					ColorSequenceKeypoint.new(0.333, c3(0,255,0)),
+					ColorSequenceKeypoint.new(0.5, c3(0,255,255)),
+					ColorSequenceKeypoint.new(0.666, c3(0,0,255)),
+					ColorSequenceKeypoint.new(0.833, c3(255,0,255)),
+					ColorSequenceKeypoint.new(1, c3(255,0,0)),
+				}
+				hueGrad.Rotation = 90
+
+				local hueDot = Instance.new("Frame", hueBar)
+				hueDot.Size = u2(1,4,0,4)
+				hueDot.Position = u2(0,-2,h,-2)
+				hueDot.BackgroundColor3 = theme.white
+				hueDot.ZIndex = 17
+				corner(hueDot, 2)
+
+				local hexBox = Instance.new("TextBox", picker)
+				hexBox.Size = u2(1,-16,0,28)
+				hexBox.Position = u2(0,8,0,136)
+				hexBox.BackgroundColor3 = theme.bg
+				hexBox.TextColor3 = theme.text
+				hexBox.Text = "#"..string.format("%02x%02x%02x", math.floor(currentColor.R*255), math.floor(currentColor.G*255), math.floor(currentColor.B*255)):upper()
+				hexBox.TextSize = 12
+				hexBox.Font = Enum.Font.GothamMedium
+				hexBox.ZIndex = 16
+				corner(hexBox, 5)
+				stroke(hexBox, theme.border, 1, 0.5)
+				pad(hexBox, 0,0,8,8)
+
+				local function updateColor()
+					currentColor = Color3.fromHSV(h,s,v2val)
+					preview.BackgroundColor3 = currentColor
+					svColor.Color = ColorSequence.new{
+						ColorSequenceKeypoint.new(0, c3(255,255,255)),
+						ColorSequenceKeypoint.new(1, Color3.fromHSV(h,1,1))
+					}
+					svDot.Position = u2(s,0,1-v2val,0)
+					hueDot.Position = u2(0,-2,h,-2)
+					hexBox.Text = "#"..string.format("%02x%02x%02x", math.floor(currentColor.R*255), math.floor(currentColor.G*255), math.floor(currentColor.B*255)):upper()
+					task.spawn(cb, currentColor)
+				end
+
+				conn(svFrame.InputBegan, function(inp)
+					if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+						draggingSv = true
+						local abs = svFrame.AbsolutePosition
+						local sz = svFrame.AbsoluteSize
+						s = math.clamp((inp.Position.X-abs.X)/sz.X,0,1)
+						v2val = 1-math.clamp((inp.Position.Y-abs.Y)/sz.Y,0,1)
+						updateColor()
+					end
+				end)
+				conn(hueBar.InputBegan, function(inp)
+					if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+						draggingH = true
+						local abs = hueBar.AbsolutePosition
+						local sz = hueBar.AbsoluteSize
+						h = math.clamp((inp.Position.Y-abs.Y)/sz.Y,0,1)
+						updateColor()
+					end
+				end)
+				conn(uis.InputChanged, function(inp)
+					if inp.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+					if draggingSv then
+						local abs = svFrame.AbsolutePosition
+						local sz = svFrame.AbsoluteSize
+						s = math.clamp((inp.Position.X-abs.X)/sz.X,0,1)
+						v2val = 1-math.clamp((inp.Position.Y-abs.Y)/sz.Y,0,1)
+						updateColor()
+					elseif draggingH then
+						local abs = hueBar.AbsolutePosition
+						local sz = hueBar.AbsoluteSize
+						h = math.clamp((inp.Position.Y-abs.Y)/sz.Y,0,1)
+						updateColor()
+					end
+				end)
+				conn(uis.InputEnded, function(inp)
+					if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+						draggingSv = false; draggingH = false
+					end
+				end)
+
+				conn(row.InputBegan, function(inp)
+					if inp.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+					pickerOpen = not pickerOpen
+					if pickerOpen then
+						picker.Visible = true
+						picker.Size = u2(1,0,0,0)
+						tween(picker, {Size=u2(1,0,0,174)}, 0.2, Enum.EasingStyle.Back)
+						wrap.Size = u2(1,0,0, 38+174)
+					else
+						tween(picker, {Size=u2(1,0,0,0)}, 0.15)
+						task.delay(0.16, function() if not pickerOpen then picker.Visible=false end end)
+						wrap.Size = u2(1,0,0,36)
+					end
+				end)
+				conn(row.MouseEnter, function() tween(row, {BackgroundColor3=c3(26,26,34)}, 0.1) end)
+				conn(row.MouseLeave, function() tween(row, {BackgroundColor3=theme.elevated}, 0.1) end)
+
+				local obj = {Value=currentColor}
+				function obj:Set(c) currentColor=c; h,s,v2val=Color3.toHSV(c); updateColor() end
+				return obj
+			end
+
+			function S:CreateLabel(text, color)
+				local lf = Instance.new("Frame", secContent)
+				lf.Size = u2(1,0,0,24)
+				lf.BackgroundTransparency = 1
+				lf.LayoutOrder = so()
+				lf.ZIndex = 7
+
+				local ll = label(lf, text or "", 12, color or theme.subtext, Enum.Font.Gotham)
+				ll.Position = u2(0,12,0.5,-7)
+				ll.ZIndex = 8
+
+				local obj = {}
+				function obj:Set(t, c) ll.Text=t; if c then ll.TextColor3=c end end
+				return obj
+			end
+
+			function S:CreateDivider()
+				local div = Instance.new("Frame", secContent)
+				div.Size = u2(1,0,0,1)
+				div.BackgroundColor3 = theme.border
+				div.BackgroundTransparency = 0.4
+				div.BorderSizePixel = 0
+				div.LayoutOrder = so()
+				div.ZIndex = 7
+			end
+
+			return S
+		end
+
+		function T:CreateButton(cfg2) return ({T:CreateSection("__nosec")})[1] and nil end
+
+		T._page = page
+		T._scroll = scroll
+		return T
+	end
+
+	local minimized = false
+	conn(minBtn.MouseButton1Click, function()
+		minimized = not minimized
+		if minimized then
+			tween(main, {Size=u2(0,size.X,0,48)}, 0.25, Enum.EasingStyle.Back)
+		else
+			tween(main, {Size=u2(0,size.X,0,size.Y)}, 0.25, Enum.EasingStyle.Back)
+		end
+	end)
+
+	conn(closeBtn.MouseButton1Click, function()
+		tween(main, {Size=u2(0,size.X,0,0), Position=u2(main.Position.X.Scale, main.Position.X.Offset, main.Position.Y.Scale, main.Position.Y.Offset + size.Y/2)}, 0.2)
+		tween(overlay, {BackgroundTransparency=1}, 0.2)
+		task.delay(0.22, function() gui:Destroy() end)
+	end)
+
+	conn(uis.InputBegan, function(inp, gp)
+		if gp then return end
+		if inp.KeyCode == toggleKey then
+			main.Visible = not main.Visible
+		end
+	end)
+
+	main.Size = u2(0,size.X,0,0)
+	tween(main, {Size=u2(0,size.X,0,size.Y)}, 0.35, Enum.EasingStyle.Back)
+
+	for btn in pairs({closeBtn,minBtn}) do
+		local b = btn==1 and closeBtn or minBtn
+		conn(b.MouseEnter, function() tween(b, {BackgroundTransparency=0.3}, 0.1) end)
+		conn(b.MouseLeave, function() tween(b, {BackgroundTransparency=0.6}, 0.1) end)
+	end
+
+	W._gui = gui
+	W._main = main
+	return W
+end
+
+return KrakenUI
