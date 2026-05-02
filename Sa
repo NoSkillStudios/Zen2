@@ -325,29 +325,34 @@ function KrakenUI.Window(cfg)
 	local W = {}
 	local tabPages = {}
 	local tabBtns = {}
+	local tabMeta = {}
 	local activeTab = nil
 
 	local function selectTab(name)
 		if activeTab == name then return end
 		activeTab = name
 		for n, page in pairs(tabPages) do
+			local btn = tabBtns[n]
+			local meta = tabMeta[n]
 			if n == name then
 				page.Visible = true
 				tween(page, {BackgroundTransparency=1}, 0.12)
-				local btn = tabBtns[n]
 				if btn then
 					tween(btn, {BackgroundColor3=theme.elevated, BackgroundTransparency=0}, 0.15)
-					tween(btn._lbl, {TextColor3=theme.text}, 0.15)
-					tween(btn._bar, {BackgroundTransparency=0}, 0.15)
+				end
+				if meta then
+					tween(meta.lbl, {TextColor3=theme.text}, 0.15)
+					tween(meta.bar, {BackgroundTransparency=0}, 0.15)
 				end
 			else
 				tween(page, {BackgroundTransparency=1}, 0.08)
 				task.delay(0.08, function() if page and page.Parent then page.Visible = false end end)
-				local btn = tabBtns[n]
 				if btn then
 					tween(btn, {BackgroundColor3=theme.sidebar, BackgroundTransparency=1}, 0.15)
-					tween(btn._lbl, {TextColor3=theme.subtext}, 0.15)
-					tween(btn._bar, {BackgroundTransparency=1}, 0.15)
+				end
+				if meta then
+					tween(meta.lbl, {TextColor3=theme.subtext}, 0.15)
+					tween(meta.bar, {BackgroundTransparency=1}, 0.15)
 				end
 			end
 		end
@@ -403,10 +408,8 @@ function KrakenUI.Window(cfg)
 		nameLbl.Position = u2(0,20,0.5,-7)
 		nameLbl.ZIndex = 6
 
-		tabBtn._lbl = nameLbl
-		tabBtn._bar = bar
-
 		tabBtns[name] = tabBtn
+		tabMeta[name] = {lbl = nameLbl, bar = bar}
 		tabPages[name] = page
 
 		conn(tabBtn.MouseButton1Click, function()
@@ -1278,8 +1281,7 @@ function KrakenUI.Window(cfg)
 	main.Size = u2(0,size.X,0,0)
 	tween(main, {Size=u2(0,size.X,0,size.Y)}, 0.35, Enum.EasingStyle.Back)
 
-	for btn in pairs({closeBtn,minBtn}) do
-		local b = btn==1 and closeBtn or minBtn
+	for _, b in ipairs({closeBtn, minBtn}) do
 		conn(b.MouseEnter, function() tween(b, {BackgroundTransparency=0.3}, 0.1) end)
 		conn(b.MouseLeave, function() tween(b, {BackgroundTransparency=0.6}, 0.1) end)
 	end
