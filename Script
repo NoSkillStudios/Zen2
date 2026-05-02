@@ -146,6 +146,7 @@ function K.Window(cfg)
 	gui.IgnoreGuiInset  = true
 	gui.Parent          = lp:WaitForChild("PlayerGui")
 
+	-- INLINE TOOLTIP
 	local inlineTooltip = Instance.new("Frame", gui)
 	inlineTooltip.Size             = u2(0,0,0,24)
 	inlineTooltip.BackgroundColor3 = T.elev
@@ -189,6 +190,7 @@ function K.Window(cfg)
 		inlineTooltip.Visible = false
 	end
 
+	-- ROBUST TOOLTIP TRACKING (fixes stuck tooltips)
 	local tooltipTarget = nil
 	local function setTooltipTarget(element, text)
 		tooltipTarget = element
@@ -219,6 +221,7 @@ function K.Window(cfg)
 	mainClip.BorderSizePixel  = 0
 	mainClip.ZIndex           = 2
 
+	-- TOPBAR
 	local topbar = Instance.new("Frame", mainClip)
 	topbar.Size             = u2(1,0,0,48)
 	topbar.BackgroundColor3 = T.sidebar
@@ -240,6 +243,7 @@ function K.Window(cfg)
 	tbBord.BorderSizePixel  = 0
 	tbBord.ZIndex           = 5
 
+	-- Logo badge
 	local logoBadge = Instance.new("Frame", topbar)
 	logoBadge.Size             = u2(0,30,0,30)
 	logoBadge.Position         = u2(0,12,0.5,-15)
@@ -261,6 +265,7 @@ function K.Window(cfg)
 	logoChar.TextYAlignment     = Enum.TextYAlignment.Center
 	logoChar.ZIndex             = 7
 
+	-- FPS / Ping stats
 	local statsF = Instance.new("Frame", topbar)
 	statsF.Size             = u2(0,100,0,30)
 	statsF.Position         = u2(0,50,0.5,-15)
@@ -289,6 +294,7 @@ function K.Window(cfg)
 	pingLbl.TextXAlignment = Enum.TextXAlignment.Left
 	pingLbl.ZIndex     = 7
 
+	-- Title
 	local titleLbl = Instance.new("TextLabel", topbar)
 	titleLbl.BackgroundTransparency = 1
 	titleLbl.Text       = winTitle
@@ -301,6 +307,7 @@ function K.Window(cfg)
 	titleLbl.TextYAlignment = Enum.TextYAlignment.Center
 	titleLbl.ZIndex     = 6
 
+	-- Key hint
 	local keyHintF = Instance.new("Frame", topbar)
 	keyHintF.Size             = u2(0,70,0,22)
 	keyHintF.Position         = u2(1,-200,0.5,-11)
@@ -343,6 +350,7 @@ function K.Window(cfg)
 
 	makeDraggable(main, topbar)
 
+	-- FPS counter
 	local fpsCount, lastT = 0, tick()
 	cn(rs.RenderStepped, function()
 		fpsCount += 1
@@ -363,6 +371,7 @@ function K.Window(cfg)
 		end)
 	end
 
+	-- BOTTOM DRAG HANDLE
 	local bottomDrag = Instance.new("Frame", gui)
 	bottomDrag.Name             = "BottomDrag"
 	bottomDrag.Size             = u2(0, 80, 0, 5)
@@ -398,6 +407,7 @@ function K.Window(cfg)
 		if i.UserInputType == Enum.UserInputType.MouseButton1 then bdDragging = false end
 	end)
 
+	-- BODY
 	local body = Instance.new("Frame", mainClip)
 	body.Position        = u2(0,0,0,48)
 	body.Size            = u2(1,0,1,-48)
@@ -405,6 +415,7 @@ function K.Window(cfg)
 	body.BorderSizePixel = 0
 	body.ZIndex          = 3
 
+	-- SIDEBAR (icon only, 52px)
 	local sidebar = Instance.new("Frame", body)
 	sidebar.Size             = u2(0,52,1,0)
 	sidebar.BackgroundColor3 = T.sidebar
@@ -418,6 +429,7 @@ function K.Window(cfg)
 	sBord.BorderSizePixel  = 0
 	sBord.ZIndex           = 5
 
+	-- Player avatar
 	local avatarFrame = Instance.new("Frame", sidebar)
 	avatarFrame.Size             = u2(0,38,0,38)
 	avatarFrame.Position         = u2(0.5,-19,1,-48)
@@ -467,6 +479,7 @@ function K.Window(cfg)
 	pad(sideScroll, 8, 8, 7, 7)
 	list(sideScroll, nil, 3)
 
+	-- CONTENT AREA
 	local contentArea = Instance.new("Frame", body)
 	contentArea.Position        = u2(0,52,0,0)
 	contentArea.Size            = u2(1,-52,1,0)
@@ -475,6 +488,7 @@ function K.Window(cfg)
 	contentArea.BorderSizePixel = 0
 	contentArea.ZIndex          = 3
 
+	-- TAB HEADER: floating, disconnected from main body
 	local tabHeader = Instance.new("Frame", gui)
 	tabHeader.Size             = u2(0, winW - 52 - 20, 0, 34)
 	tabHeader.BackgroundColor3 = c3(12, 12, 18)
@@ -532,6 +546,7 @@ function K.Window(cfg)
 	pageContainer.BorderSizePixel = 0
 	pageContainer.ZIndex          = 4
 
+	-- Sidebar tooltip (right of icon)
 	local sideTooltip = Instance.new("Frame", gui)
 	sideTooltip.Size             = u2(0,0,0,26)
 	sideTooltip.BackgroundColor3 = T.elev
@@ -813,6 +828,7 @@ function K.Window(cfg)
 				return l
 			end
 
+			-- BUTTON
 			function S:CreateButton(cfg2)
 				cfg2 = type(cfg2)=="string" and {Title=cfg2} or cfg2
 				local cb  = cfg2.Callback or function() end
@@ -876,6 +892,7 @@ function K.Window(cfg)
 				cn(hitBtn.MouseButton1Click, function() fire() end)
 			end
 
+			-- TOGGLE
 			function S:CreateToggle(cfg2)
 				cfg2 = type(cfg2)=="string" and {Title=cfg2} or cfg2
 				local cb    = cfg2.Callback or function() end
@@ -929,6 +946,7 @@ function K.Window(cfg)
 				return obj
 			end
 
+			-- SLIDER
 			function S:CreateSlider(cfg2)
 				cfg2 = type(cfg2)=="string" and {Title=cfg2} or cfg2
 				local cb      = cfg2.Callback or function() end
@@ -1105,6 +1123,7 @@ function K.Window(cfg)
 				return obj
 			end
 
+			-- DROPDOWN
 			function S:CreateDropdown(cfg2)
 				cfg2 = type(cfg2)=="string" and {Title=cfg2} or cfg2
 				local cb    = cfg2.Callback or function() end
@@ -1340,6 +1359,7 @@ function K.Window(cfg)
 				return obj
 			end
 
+			-- INPUT
 			function S:CreateInput(cfg2)
 				cfg2 = type(cfg2)=="string" and {Title=cfg2} or cfg2
 				local cb = cfg2.Callback or function() end
@@ -1387,6 +1407,7 @@ function K.Window(cfg)
 				return obj
 			end
 
+			-- KEYBIND
 			function S:CreateKeybind(cfg2)
 				cfg2 = type(cfg2)=="string" and {Title=cfg2} or cfg2
 				local cb        = cfg2.Callback or function() end
@@ -1446,6 +1467,7 @@ function K.Window(cfg)
 				return obj
 			end
 
+			-- COLOR PICKER
 			function S:CreateColorPicker(cfg2)
 				cfg2 = type(cfg2)=="string" and {Title=cfg2} or cfg2
 				local cb   = cfg2.Callback or function() end
@@ -1666,6 +1688,7 @@ function K.Window(cfg)
 				return obj
 			end
 
+			-- LABEL
 			function S:CreateLabel(text, color, desc)
 				eOrder += 1
 				local f = Instance.new("Frame", secBody)
@@ -1687,6 +1710,7 @@ function K.Window(cfg)
 				return obj
 			end
 
+			-- DIVIDER
 			function S:CreateDivider()
 				eOrder += 1
 				local d = Instance.new("Frame", secBody)
@@ -1703,6 +1727,7 @@ function K.Window(cfg)
 		return Tab
 	end
 
+	-- WINDOW CONTROLS
 	local minimized = false
 	cn(minBtn.MouseButton1Click,function()
 		minimized = not minimized
@@ -1738,6 +1763,7 @@ function K.Window(cfg)
 		tw(main,{Size=u2(0,winW,0,winH)},0.38,Enum.EasingStyle.Back,Enum.EasingDirection.Out)
 	end)
 
+	-- Combined RenderStepped for drag bar, tab header, and tooltip cleanup
 	cn(rs.RenderStepped, function()
 		syncDragBar()
 		syncTabHeader()
@@ -1771,47 +1797,4 @@ function K.Window(cfg)
 	return W
 end
 
--- ═════════════════════════════════════════════════════════════════════════════
--- THIS IS THE BOTTOM OF THE FILE — WINDOW CREATION & NOTIFY HOOK
--- ═════════════════════════════════════════════════════════════════════════════
-
-local W = K.Window({
-	Title     = "Kraken",
-	Size      = Vector2.new(600, 460),
-	ToggleKey = Enum.KeyCode.RightShift,
-})
-
--- Hook the notification system from MainLoader
-W.Notify = getgenv().KrakenNotify
-
--- Example tabs so you can test immediately
-local PlayerTab = W:CreateTab("Player", "👤")
-local PSec = PlayerTab:CreateSection("Movement")
-PSec:CreateToggle({
-	Title = "Speed Hack",
-	Callback = function(v) print("Speed:", v) end
-})
-PSec:CreateSlider({
-	Title = "Walk Speed",
-	Min = 16, Max = 200, Default = 50, Suffix = "",
-	Callback = function(v) print("Speed set:", v) end
-})
-
-local WorldTab = W:CreateTab("World", "🌍")
-local WSec = WorldTab:CreateSection("Environment")
-WSec:CreateButton({
-	Title = "Day Time",
-	Callback = function() print("Day") end
-})
-
--- Startup notification
-task.delay(1.2, function()
-	if W.Notify then
-		W:Notify({
-			Title    = "Kraken Loaded",
-			Body     = "Press RightShift to toggle the UI.",
-			Type     = "success",
-			Duration = 5,
-		})
-	end
-end)
+return K
