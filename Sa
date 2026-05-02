@@ -146,7 +146,7 @@ function K.Window(cfg)
 	gui.IgnoreGuiInset  = true
 	gui.Parent          = lp:WaitForChild("PlayerGui")
 
-	-- INLINE TOOLTIP (shows next to hovered element, not global popup)
+	-- INLINE TOOLTIP
 	local inlineTooltip = Instance.new("Frame", gui)
 	inlineTooltip.Size             = u2(0,0,0,24)
 	inlineTooltip.BackgroundColor3 = T.elev
@@ -165,7 +165,8 @@ function K.Window(cfg)
 	ittLbl.Font       = Enum.Font.Gotham
 	ittLbl.AutomaticSize = Enum.AutomaticSize.XY
 	ittLbl.TextXAlignment = Enum.TextXAlignment.Left
-	ittLbl.Position   = u2(0,0,0.5,-5)
+	ittLbl.AnchorPoint = v2(0, 0.5)
+	ittLbl.Position   = u2(0, 0, 0.5, 0)
 	ittLbl.ZIndex     = 1001
 	ittLbl.Size       = u2(0,0,0,10)
 
@@ -187,6 +188,19 @@ function K.Window(cfg)
 	end
 	local function hideTooltip()
 		inlineTooltip.Visible = false
+	end
+
+	-- ROBUST TOOLTIP TRACKING (fixes stuck tooltips)
+	local tooltipTarget = nil
+	local function setTooltipTarget(element, text)
+		tooltipTarget = element
+		showTooltipAt(text)
+	end
+	local function clearTooltipTarget(element)
+		if tooltipTarget == element then
+			tooltipTarget = nil
+			hideTooltip()
+		end
 	end
 
 	local main = Instance.new("Frame", gui)
@@ -357,7 +371,7 @@ function K.Window(cfg)
 		end)
 	end
 
-	-- BOTTOM DRAG HANDLE - slim white bar
+	-- BOTTOM DRAG HANDLE
 	local bottomDrag = Instance.new("Frame", gui)
 	bottomDrag.Name             = "BottomDrag"
 	bottomDrag.Size             = u2(0, 80, 0, 5)
@@ -376,10 +390,6 @@ function K.Window(cfg)
 			mp.Y.Scale, mp.Y.Offset + ms.Y + 7
 		)
 	end
-
-	cn(rs.RenderStepped, function()
-		syncDragBar()
-	end)
 
 	local bdDragging, bdDragStart, bdStartPos = false, nil, nil
 	cn(bottomDrag.InputBegan, function(i)
@@ -478,37 +488,55 @@ function K.Window(cfg)
 	contentArea.BorderSizePixel = 0
 	contentArea.ZIndex          = 3
 
-	-- TAB HEADER: floating, disconnected from main body, parented to gui
+	-- TAB HEADER: floating, disconnected from main body
 	local tabHeader = Instance.new("Frame", gui)
-	tabHeader.Size             = u2(0, winW - 52 - 20, 0, 32)
-	tabHeader.BackgroundColor3 = c3(8, 8, 12)
+	tabHeader.Size             = u2(0, winW - 52 - 20, 0, 34)
+	tabHeader.BackgroundColor3 = c3(12, 12, 18)
 	tabHeader.BorderSizePixel  = 0
 	tabHeader.ZIndex           = 200
 	tabHeader.ClipsDescendants = false
-	corner(tabHeader, 8)
-	stroke(tabHeader, T.bordFaint, 1)
+	corner(tabHeader, 10)
+	stroke(tabHeader, T.bord, 1)
+
+	local tabShadow = Instance.new("Frame", gui)
+	tabShadow.Size = u2(0, winW - 52 - 20, 0, 34)
+	tabShadow.BackgroundColor3 = T.black
+	tabShadow.BackgroundTransparency = 0.7
+	tabShadow.BorderSizePixel = 0
+	tabShadow.ZIndex = 199
+	corner(tabShadow, 10)
 
 	local function syncTabHeader()
 		if not main or not main.Parent then return end
 		local mp = main.Position
-		tabHeader.Position = u2(
-			mp.X.Scale, mp.X.Offset + 52 + 10,
-			mp.Y.Scale, mp.Y.Offset + 48 + 6
-		)
+		local tp = u2(mp.X.Scale, mp.X.Offset + 52 + 10, mp.Y.Scale, mp.Y.Offset + 48 + 14)
+		tabHeader.Position = tp
+		tabShadow.Position = tp + u2(0, 3, 0, 3)
 	end
-	cn(rs.RenderStepped, function()
-		syncTabHeader()
-	end)
+
+	local activeTabIcon = Instance.new("TextLabel", tabHeader)
+	activeTabIcon.BackgroundTransparency = 1
+	activeTabIcon.Text = ""
+	activeTabIcon.TextSize = 14
+	activeTabIcon.TextColor3 = T.acc
+	activeTabIcon.Font = Enum.Font.GothamBold
+	activeTabIcon.Size = u2(0, 22, 0, 22)
+	activeTabIcon.AnchorPoint = v2(0, 0.5)
+	activeTabIcon.Position = u2(0, 12, 0.5, 0)
+	activeTabIcon.TextXAlignment = Enum.TextXAlignment.Center
+	activeTabIcon.TextYAlignment = Enum.TextYAlignment.Center
+	activeTabIcon.ZIndex = 201
 
 	local activeTabLabel = Instance.new("TextLabel", tabHeader)
 	activeTabLabel.BackgroundTransparency = 1
-	activeTabLabel.Text       = ""
-	activeTabLabel.TextSize   = 11
-	activeTabLabel.TextColor3 = T.sub
-	activeTabLabel.Font       = Enum.Font.GothamMedium
-	activeTabLabel.Position   = u2(0,12,0.5,-5)
+	activeTabLabel.Text = ""
+	activeTabLabel.TextSize = 12
+	activeTabLabel.TextColor3 = T.txt
+	activeTabLabel.Font = Enum.Font.GothamBold
+	activeTabLabel.AnchorPoint = v2(0, 0.5)
+	activeTabLabel.Position = u2(0, 38, 0.5, 0)
 	activeTabLabel.AutomaticSize = Enum.AutomaticSize.XY
-	activeTabLabel.ZIndex     = 201
+	activeTabLabel.ZIndex = 201
 
 	local pageContainer = Instance.new("Frame", contentArea)
 	pageContainer.Position        = u2(0,0,0,0)
@@ -537,7 +565,8 @@ function K.Window(cfg)
 	stLbl.Font       = Enum.Font.GothamMedium
 	stLbl.AutomaticSize = Enum.AutomaticSize.XY
 	stLbl.TextXAlignment = Enum.TextXAlignment.Left
-	stLbl.Position   = u2(0,0,0.5,-6)
+	stLbl.AnchorPoint = v2(0, 0.5)
+	stLbl.Position   = u2(0, 0, 0.5, 0)
 	stLbl.ZIndex     = 501
 	stLbl.Size       = u2(0,0,0,12)
 
@@ -568,42 +597,54 @@ function K.Window(cfg)
 	local sideIcons = {}
 	local activeTab = nil
 
-	local function selectTab(name)
+	local function selectTab(name, instant)
 		if activeTab == name then return end
 		local prev = activeTab
 		activeTab  = name
 		activeTabLabel.Text = name
+		local si = sideIcons[name]
+		if si then
+			activeTabIcon.Text = si.iconChar
+		end
 
 		for n, pg in pairs(pages) do
-			local si = sideIcons[n]
+			local si2 = sideIcons[n]
 			if n == name then
 				pg.Visible = true
-				tw(pg, {BackgroundTransparency=0}, 0.18)
-				if si then
-					tw(si.btn,  {BackgroundColor3=T.accDim, BackgroundTransparency=0}, 0.2)
-					if si.isImage then
-						tw(si.icon, {ImageColor3=T.white}, 0.2)
+				if not instant then
+					pg.Position = u2(0, 0.03, 0, 10)
+					tw(pg, {Position = u2(0, 0, 0, 0)}, 0.3, Enum.EasingStyle.Quart)
+				end
+				if si2 then
+					tw(si2.btn,  {BackgroundColor3=T.accDim, BackgroundTransparency=0}, 0.2)
+					if si2.isImage then
+						tw(si2.icon, {ImageColor3=T.white}, 0.2)
 					else
-						tw(si.icon, {TextColor3=T.white}, 0.2)
+						tw(si2.icon, {TextColor3=T.white}, 0.2)
 					end
-					tw(si.bar, {BackgroundTransparency=0, Size=u2(0,3,0.65,0)}, 0.25, Enum.EasingStyle.Back)
+					tw(si2.bar, {BackgroundTransparency=0, Size=u2(0,3,0.65,0)}, 0.25, Enum.EasingStyle.Back)
 				end
 			else
-				if si then
-					tw(si.btn,  {BackgroundColor3=T.sidebar, BackgroundTransparency=1}, 0.2)
-					if si.isImage then
-						tw(si.icon, {ImageColor3=T.muted}, 0.2)
+				if si2 then
+					tw(si2.btn,  {BackgroundColor3=T.sidebar, BackgroundTransparency=1}, 0.2)
+					if si2.isImage then
+						tw(si2.icon, {ImageColor3=T.muted}, 0.2)
 					else
-						tw(si.icon, {TextColor3=T.muted}, 0.2)
+						tw(si2.icon, {TextColor3=T.muted}, 0.2)
 					end
-					tw(si.bar, {BackgroundTransparency=1, Size=u2(0,3,0,0)}, 0.2)
+					tw(si2.bar, {BackgroundTransparency=1, Size=u2(0,3,0,0)}, 0.2)
 				end
-				if prev == n then
-					task.delay(0.18, function()
-						if activeTab ~= n and pg and pg.Parent then pg.Visible=false end
+				if prev == n and not instant then
+					tw(pg, {Position = u2(0, -0.03, 0, -10)}, 0.2, Enum.EasingStyle.Quart)
+					task.delay(0.2, function()
+						if activeTab ~= n and pg and pg.Parent then 
+							pg.Visible = false
+							pg.Position = u2(0, 0, 0, 0)
+						end
 					end)
 				else
 					pg.Visible = false
+					pg.Position = u2(0, 0, 0, 0)
 				end
 			end
 		end
@@ -675,14 +716,12 @@ function K.Window(cfg)
 		pages[name]     = page
 
 		cn(icoBtn.MouseButton1Click, function()
-			-- NO ripple
 			selectTab(name)
 		end)
 		cn(icoBtn.MouseEnter, function()
 			showSideTooltip(name, icoBtn)
 			if activeTab ~= name then
-				tw(icoBtn,{BackgroundTransparency=0.7, BackgroundColor3=T.elev},0.15)
-				-- White highlight on hover
+				tw(icoBtn,{BackgroundTransparency=0, BackgroundColor3=T.elevHov},0.15)
 				if isImageIcon then
 					tw(icoLbl,{ImageColor3=T.white},0.15)
 				else
@@ -708,7 +747,7 @@ function K.Window(cfg)
 			end
 		end)
 
-		if not activeTab then selectTab(name) end
+		if not activeTab then selectTab(name, true) end
 
 		local Tab = {}
 		local secOrder = 0
@@ -743,7 +782,8 @@ function K.Window(cfg)
 			alg.Rotation = 90
 
 			local secTlbl = lbl(hdr, string.upper(sectionName or "Section"), 10, T.sub, Enum.Font.GothamBold)
-			secTlbl.Position = u2(0,22,0.5,-5)
+			secTlbl.AnchorPoint = v2(0, 0.5)
+			secTlbl.Position = u2(0, 22, 0.5, 0)
 			secTlbl.ZIndex   = 8
 
 			local div = Instance.new("Frame", sec)
@@ -780,9 +820,10 @@ function K.Window(cfg)
 				return r
 			end
 
-			local function rowLbl(r2, txt, yOff)
+			local function rowLbl(r2, txt)
 				local l = lbl(r2, txt, 12, T.txt, Enum.Font.GothamMedium)
-				l.Position = u2(0,12,0,yOff or 10)
+				l.AnchorPoint = v2(0, 0.5)
+				l.Position = u2(0, 12, 0.5, 0)
 				l.ZIndex   = 9
 				return l
 			end
@@ -802,13 +843,15 @@ function K.Window(cfg)
 				hitBtn.ZIndex           = 8
 				hitBtn.BorderSizePixel  = 0
 
-				rowLbl(r, cfg2.Title or "Button", 11)
+				rowLbl(r, cfg2.Title or "Button")
 
-				-- Desc shown inline next to title on hover via tooltip
 				if desc then
-					cn(r.MouseEnter, function() showTooltipAt(desc) end)
-					cn(r.MouseLeave, function() hideTooltip() end)
+					cn(r.MouseEnter, function() setTooltipTarget(r, desc) end)
+					cn(r.MouseLeave, function() clearTooltipTarget(r) end)
 				end
+
+				cn(hitBtn.MouseEnter, function() tw(r,{BackgroundColor3=T.elevHov},0.14) end)
+				cn(hitBtn.MouseLeave, function() tw(r,{BackgroundColor3=T.elev},0.14) end)
 
 				local btn = Instance.new("TextButton", r)
 				btn.Size             = u2(0,68,0,26)
@@ -826,14 +869,16 @@ function K.Window(cfg)
 				bg.Rotation = 135
 
 				cn(btn.MouseEnter, function()
-					tw(btn,{BackgroundColor3=T.white, TextColor3=T.acc},0.15)
+					tw(btn,{BackgroundColor3=T.accGlow},0.15)
 				end)
 				cn(btn.MouseLeave, function()
-					tw(btn,{BackgroundColor3=T.acc, TextColor3=T.white},0.15)
+					tw(btn,{BackgroundColor3=T.acc},0.15)
 				end)
 
+				cn(btn.MouseEnter, function() tw(r,{BackgroundColor3=T.elevHov},0.14) end)
+				cn(btn.MouseLeave, function() tw(r,{BackgroundColor3=T.elev},0.14) end)
+
 				local function fire()
-					-- NO ripple VFX
 					tw(btn,{Size=u2(0,64,0,23),Position=u2(1,-74,0.5,-11.5)},0.08)
 					task.delay(0.12,function()
 						if btn and btn.Parent then
@@ -862,11 +907,11 @@ function K.Window(cfg)
 				hitBtn.ZIndex           = 9
 				hitBtn.BorderSizePixel  = 0
 
-				rowLbl(r, cfg2.Title or "Toggle", 11)
+				rowLbl(r, cfg2.Title or "Toggle")
 
 				if desc then
-					cn(r.MouseEnter, function() showTooltipAt(desc) end)
-					cn(r.MouseLeave, function() hideTooltip() end)
+					cn(r.MouseEnter, function() setTooltipTarget(r, desc) end)
+					cn(r.MouseLeave, function() clearTooltipTarget(r) end)
 				end
 
 				local track = Instance.new("Frame", r)
@@ -955,8 +1000,8 @@ function K.Window(cfg)
 				numBox.Visible          = false
 
 				if desc then
-					cn(r.MouseEnter, function() showTooltipAt(desc) end)
-					cn(r.MouseLeave, function() hideTooltip() end)
+					cn(r.MouseEnter, function() setTooltipTarget(r, desc) end)
+					cn(r.MouseLeave, function() clearTooltipTarget(r) end)
 				end
 
 				local trackBg = Instance.new("Frame", r)
@@ -1078,7 +1123,7 @@ function K.Window(cfg)
 				return obj
 			end
 
-			-- DROPDOWN - ↑ ↓ arrow style
+			-- DROPDOWN
 			function S:CreateDropdown(cfg2)
 				cfg2 = type(cfg2)=="string" and {Title=cfg2} or cfg2
 				local cb    = cfg2.Callback or function() end
@@ -1108,15 +1153,15 @@ function K.Window(cfg)
 				local rStroke = stroke(r, T.bordFaint, 1)
 
 				if desc then
-					cn(r.MouseEnter, function() showTooltipAt(desc) end)
-					cn(r.MouseLeave, function() hideTooltip() end)
+					cn(r.MouseEnter, function() setTooltipTarget(r, desc) end)
+					cn(r.MouseLeave, function() clearTooltipTarget(r) end)
 				end
 
 				local ntl2 = lbl(r, cfg2.Title or "Dropdown", 12, T.txt, Enum.Font.GothamMedium)
-				ntl2.Position = u2(0,12,0.5,-6)
+				ntl2.AnchorPoint = v2(0, 0.5)
+				ntl2.Position = u2(0, 12, 0.5, 0)
 				ntl2.ZIndex   = 31
 
-				-- ↑ ↓ single arrow indicator that rotates
 				local arrowLbl = Instance.new("TextLabel", r)
 				arrowLbl.BackgroundTransparency = 1
 				arrowLbl.Text       = "↓"
@@ -1320,11 +1365,11 @@ function K.Window(cfg)
 				local cb = cfg2.Callback or function() end
 				local desc = cfg2.Description
 				local r  = row(36)
-				rowLbl(r, cfg2.Title or "Input", 11)
+				rowLbl(r, cfg2.Title or "Input")
 
 				if desc then
-					cn(r.MouseEnter, function() showTooltipAt(desc) end)
-					cn(r.MouseLeave, function() hideTooltip() end)
+					cn(r.MouseEnter, function() setTooltipTarget(r, desc) end)
+					cn(r.MouseLeave, function() clearTooltipTarget(r) end)
 				end
 
 				local box = Instance.new("TextBox", r)
@@ -1370,11 +1415,11 @@ function K.Window(cfg)
 				local listening = false
 				local desc      = cfg2.Description
 				local r         = row(36)
-				rowLbl(r, cfg2.Title or "Keybind", 11)
+				rowLbl(r, cfg2.Title or "Keybind")
 
 				if desc then
-					cn(r.MouseEnter, function() showTooltipAt(desc) end)
-					cn(r.MouseLeave, function() hideTooltip() end)
+					cn(r.MouseEnter, function() setTooltipTarget(r, desc) end)
+					cn(r.MouseLeave, function() clearTooltipTarget(r) end)
 				end
 
 				local kbtn = Instance.new("TextButton", r)
@@ -1451,15 +1496,16 @@ function K.Window(cfg)
 
 				cn(r.MouseEnter,function()
 					tw(r,{BackgroundColor3=T.elevHov},0.14)
-					if desc then showTooltipAt(desc) end
+					if desc then setTooltipTarget(r, desc) end
 				end)
 				cn(r.MouseLeave,function()
 					tw(r,{BackgroundColor3=T.elev},0.14)
-					if desc then hideTooltip() end
+					if desc then clearTooltipTarget(r) end
 				end)
 
 				local ntl3 = lbl(r, cfg2.Title or "Color", 12, T.txt, Enum.Font.GothamMedium)
-				ntl3.Position = u2(0,12,0.5,-6)
+				ntl3.AnchorPoint = v2(0, 0.5)
+				ntl3.Position = u2(0, 12, 0.5, 0)
 				ntl3.ZIndex   = 21
 
 				local prev = Instance.new("Frame", r)
@@ -1652,11 +1698,12 @@ function K.Window(cfg)
 				f.ZIndex           = 8
 				f.BorderSizePixel  = 0
 				local l = lbl(f, text or "", 11, color or T.sub, Enum.Font.Gotham)
-				l.Position = u2(0,4,0.5,-5)
+				l.AnchorPoint = v2(0, 0.5)
+				l.Position = u2(0, 4, 0.5, 0)
 				l.ZIndex   = 9
 				if desc then
-					cn(f.MouseEnter, function() showTooltipAt(desc) end)
-					cn(f.MouseLeave, function() hideTooltip() end)
+					cn(f.MouseEnter, function() setTooltipTarget(f, desc) end)
+					cn(f.MouseLeave, function() clearTooltipTarget(f) end)
 				end
 				local obj = {}
 				function obj:Set(t,c2) l.Text=t; if c2 then l.TextColor3=c2 end end
@@ -1686,11 +1733,12 @@ function K.Window(cfg)
 		minimized = not minimized
 		tw(main,{Size=minimized and u2(0,winW,0,48) or u2(0,winW,0,winH)},0.3,Enum.EasingStyle.Quart)
 		tabHeader.Visible = not minimized
+		tabShadow.Visible = not minimized
 	end)
 
 	cn(closeBtn.MouseButton1Click,function()
-		-- Hide all floating elements immediately
 		tabHeader.Visible = false
+		tabShadow.Visible = false
 		bottomDrag.Visible = false
 		inlineTooltip.Visible = false
 		sideTooltip.Visible = false
@@ -1706,12 +1754,29 @@ function K.Window(cfg)
 			local v = not main.Visible
 			main.Visible   = v
 			tabHeader.Visible  = v
+			tabShadow.Visible = v
 			bottomDrag.Visible = v
 		end
 	end)
 
 	task.defer(function()
 		tw(main,{Size=u2(0,winW,0,winH)},0.38,Enum.EasingStyle.Back,Enum.EasingDirection.Out)
+	end)
+
+	-- Combined RenderStepped for drag bar, tab header, and tooltip cleanup
+	cn(rs.RenderStepped, function()
+		syncDragBar()
+		syncTabHeader()
+		if tooltipTarget and tooltipTarget.Parent then
+			local mousePos = uis:GetMouseLocation()
+			local ap = tooltipTarget.AbsolutePosition
+			local as = tooltipTarget.AbsoluteSize
+			if mousePos.X < ap.X or mousePos.X > ap.X + as.X or
+			   mousePos.Y < ap.Y or mousePos.Y > ap.Y + as.Y then
+				tooltipTarget = nil
+				hideTooltip()
+			end
+		end
 	end)
 
 	W._gui  = gui
@@ -1725,6 +1790,7 @@ function K.Window(cfg)
 	function W:SetVisible(v)
 		main.Visible       = v
 		tabHeader.Visible  = v
+		tabShadow.Visible  = v
 		bottomDrag.Visible = v
 	end
 
