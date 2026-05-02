@@ -1,0 +1,104 @@
+local l={}
+
+local uis=game:GetService("UserInputService")
+local plr=game.Players.LocalPlayer
+local gui=Instance.new("ScreenGui")
+gui.Name="kr4kStyle"
+gui.Parent=plr:WaitForChild("PlayerGui")
+
+function l.Window(t)
+local f=Instance.new("Frame",gui)
+f.Size=UDim2.new(0,500,0,350)
+f.Position=UDim2.new(0.5,-250,0.5,-175)
+f.BackgroundColor3=Color3.fromRGB(25,25,25)
+
+local tabs=Instance.new("Frame",f)
+tabs.Size=UDim2.new(0,120,1,0)
+tabs.BackgroundColor3=Color3.fromRGB(20,20,20)
+
+local cont=Instance.new("Frame",f)
+cont.Position=UDim2.new(0,120,0,0)
+cont.Size=UDim2.new(1,-120,1,0)
+cont.BackgroundTransparency=1
+
+local tb={}
+
+function tb.CreateTab(n)
+local b=Instance.new("TextButton",tabs)
+b.Size=UDim2.new(1,0,0,30)
+b.Text=n
+b.BackgroundColor3=Color3.fromRGB(30,30,30)
+
+local page=Instance.new("Frame",cont)
+page.Size=UDim2.new(1,0,1,0)
+page.Visible=false
+page.BackgroundTransparency=1
+
+b.MouseButton1Click:Connect(function()
+for _,v in pairs(cont:GetChildren()) do
+if v:IsA("Frame") then v.Visible=false end
+end
+page.Visible=true
+end)
+
+local el={}
+
+function el.CreateButton(n,cb)
+local bt=Instance.new("TextButton",page)
+bt.Size=UDim2.new(0,150,0,30)
+bt.Text=n
+bt.BackgroundColor3=Color3.fromRGB(40,40,40)
+
+bt.MouseButton1Click:Connect(function()
+pcall(cb)
+end)
+end
+
+function el.CreateToggle(n,cb)
+local t=false
+local bt=Instance.new("TextButton",page)
+bt.Size=UDim2.new(0,150,0,30)
+bt.Text=n.." OFF"
+
+bt.MouseButton1Click:Connect(function()
+t=not t
+bt.Text=n.." "..(t and "ON" or "OFF")
+pcall(cb,t)
+end)
+end
+
+function el.CreateSlider(n,min,max,cb)
+local val=min
+local bt=Instance.new("TextButton",page)
+bt.Size=UDim2.new(0,150,0,30)
+bt.Text=n..":"..val
+
+bt.MouseButton1Click:Connect(function()
+val=val+1
+if val>max then val=min end
+bt.Text=n..":"..val
+pcall(cb,val)
+end)
+end
+
+function el.CreateDropdown(n,list,cb)
+local idx=1
+local bt=Instance.new("TextButton",page)
+bt.Size=UDim2.new(0,150,0,30)
+bt.Text=n..":"..list[idx]
+
+bt.MouseButton1Click:Connect(function()
+idx=idx+1
+if idx>#list then idx=1 end
+bt.Text=n..":"..list[idx]
+pcall(cb,list[idx])
+end)
+end
+
+return el
+end
+
+return tb
+end
+
+return l
