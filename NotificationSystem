@@ -1,4 +1,3 @@
-
 -- ╔══════════════════════════════════════════════════════════════════════╗
 -- ║          NihonAdmin  v2.5  —  NotificationSystem Module             ║
 -- ╚══════════════════════════════════════════════════════════════════════╝
@@ -16,8 +15,17 @@ local NOTIF_RIGHT_MARGIN = 16
 local NOTIF_TOP_START    = 20
 local MAX_NOTIFS_VISIBLE = 8
 
+-- SAFE getgenv fallback
+local function safeGetGenv()
+    if typeof(getgenv) == "function" then
+        return getgenv()
+    end
+    return _G -- fallback to _G if getgenv isn't available
+end
+
 local function getGuiParent()
-    if getgenv().NihonGuiParent then return getgenv().NihonGuiParent end
+    local genv = safeGetGenv()
+    if genv.NihonGuiParent then return genv.NihonGuiParent end
     local lp = game:GetService("Players").LocalPlayer
     local ok, cg = pcall(function() return game:GetService("CoreGui") end)
     return (ok and cg) or lp:WaitForChild("PlayerGui")
@@ -193,4 +201,6 @@ local function notify(title, body, dur)
     end)
 end
 
-getgenv().NihonNotify = notify
+-- SAFE global assignment
+local genv = safeGetGenv()
+genv.NihonNotify = notify
