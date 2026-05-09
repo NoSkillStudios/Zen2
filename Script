@@ -1,7 +1,7 @@
 local k = "NihonLoader_Key_Real"
 getgenv()._nl = k
 
-local base = "https://raw.githubusercontent.com/YourUser/YourRepo/main/"
+local base = "https://github.com/NoSkillStudios/Zen2/tree/main"
 
 local modules = { "NotificationSystem", "Commands", "Gui" }
 
