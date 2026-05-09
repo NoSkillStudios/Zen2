@@ -9,17 +9,17 @@ local Players          = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local Lighting         = game:GetService("Lighting")
 
--- SAFETY: gethui fallback
-if typeof(gethui) ~= "function" then
-    gethui = function() return game:GetService("CoreGui") end
-end
-
 local lp = Players.LocalPlayer
 if not lp then
     repeat task.wait() until Players.LocalPlayer
     lp = Players.LocalPlayer
 end
 local pgui = lp:WaitForChild("PlayerGui")
+
+-- SAFETY FALLBACKS
+if typeof(gethui) ~= "function" then
+    gethui = function() return game:GetService("CoreGui") end
+end
 
 -- ── Resolve best gui parent ───────────────────────────────────────────────
 local guiParent = pgui
@@ -1423,15 +1423,32 @@ onFlowComplete = function()
 end
 
 -- ════════════════════════════════════════════════════════════════════════════
---   INSTANT LOAD (fixed — bypasses broken loader/key flow)
+--   LOADER FLOW WIRING
 -- ════════════════════════════════════════════════════════════════════════════
+ReadBtn.MouseButton1Click:Connect(function()
+    playSound("rbxassetid://139009780109934")
+    TweenService:Create(ReadBtn, TweenInfo.new(0.12), { BackgroundColor3=Color3.fromRGB(55,160,65) }):Play()
+    task.delay(0.2, function() slideOut(FeatPanel, LangPanel) end)
+end)
 
--- Destroy loader UI if it exists
-pcall(function() LoadGui:Destroy() end)
-task.wait(0.1)
+for code, btn in pairs(langBtns) do
+    btn.MouseButton1Click:Connect(function()
+        playSound("rbxassetid://139009780109934")
+        chosenLang = code
+        task.delay(0.08, function()
+            if isOwner then slideOut(LangPanel, OwnerPanel) else slideOut(LangPanel, KeyPanel) end
+        end)
+    end)
+end
 
--- Open admin panel immediately
-local ok, err = pcall(buildAdminGui)
-if not ok then
-    warn("[NihonAdmin] buildAdminGui error: " .. tostring(err))
+if isOwner then
+    YesBtn.MouseButton1Click:Connect(function()
+        TweenService:Create(YesBtn, TweenInfo.new(0.12), { BackgroundColor3=Color3.fromRGB(55,160,65) }):Play()
+        task.delay(0.22, function() slideOut(OwnerPanel, KeyPanel) end)
+        task.delay(0.4, onFlowComplete)
+    end)
+    NoBtn.MouseButton1Click:Connect(function()
+        task.delay(0.22, function() slideOut(OwnerPanel, LoadPanel) end)
+        task.delay(0.3, onFlowComplete)
+    end)
 end
