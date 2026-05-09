@@ -9,13 +9,18 @@ local UserInputService = game:GetService("UserInputService")
 local Lighting         = game:GetService("Lighting")
 local HttpService      = game:GetService("HttpService")
 
+-- SAFETY: cloneref fallback
+if typeof(cloneref) ~= "function" then
+    cloneref = function(o) return o end
+end
+
 local lp = Players.LocalPlayer
 if not lp then
     repeat task.wait() until Players.LocalPlayer
     lp = Players.LocalPlayer
 end
 
-local notify = getgenv().NihonNotify or function() end
+local notify = _G.NihonNotify or function() end
 
 local _cloneref = cloneref
 local function safeClone(o) return (_cloneref and _cloneref(o)) or o end
@@ -1224,8 +1229,8 @@ local showArgPopup = function() end  -- will be overridden by Gui.lua
 
 local function runCommand(raw)
     -- Allow Gui.lua to inject its popup function at runtime
-    local argPopupFn = getgenv().NihonShowArgPopup or showArgPopup
-    local ARG_POPUP_SCHEMAS = getgenv().NihonArgSchemas or {}
+    local argPopupFn = _G.NihonShowArgPopup or showArgPopup
+    local ARG_POPUP_SCHEMAS = _G.NihonArgSchemas or {}
 
     local parts = {}
     for w in raw:gmatch("%S+") do parts[#parts + 1] = w end
@@ -1621,9 +1626,9 @@ local PANEL_COMMANDS = {
 -- ════════════════════════════════════════════════════════════════════════════
 --   EXPOSE GLOBALS
 -- ════════════════════════════════════════════════════════════════════════════
-getgenv().NihonState         = State
-getgenv().NihonRunCommand    = runCommand
-getgenv().NihonPanelCommands = PANEL_COMMANDS
-getgenv().NihonFindPlayer    = findPlayer
-getgenv().NihonFindPlayers   = findPlayers
-getgenv().NihonPlaySound     = playSound
+_G.NihonState         = State
+_G.NihonRunCommand    = runCommand
+_G.NihonPanelCommands = PANEL_COMMANDS
+_G.NihonFindPlayer    = findPlayer
+_G.NihonFindPlayers   = findPlayers
+_G.NihonPlaySound     = playSound
