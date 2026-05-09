@@ -1,1 +1,1449 @@
+-- ╔══════════════════════════════════════════════════════════════════════╗
+-- ║              NihonAdmin  v2.5  —  Gui Module                        ║
+-- ║              Loader + Admin Panel + ArgPopup + Flow                 ║
+-- ╚══════════════════════════════════════════════════════════════════════╝
 
+local TweenService     = game:GetService("TweenService")
+local RunService       = game:GetService("RunService")
+local Players          = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local Lighting         = game:GetService("Lighting")
+
+local lp = Players.LocalPlayer
+if not lp then
+    repeat task.wait() until Players.LocalPlayer
+    lp = Players.LocalPlayer
+end
+local pgui = lp:WaitForChild("PlayerGui")
+
+-- ── Resolve best gui parent ───────────────────────────────────────────────
+local guiParent = pgui
+pcall(function()
+    if gethui then guiParent = gethui(); return end
+    local cg = game:GetService("CoreGui")
+    if cg then guiParent = cg end
+end)
+getgenv().NihonGuiParent = guiParent
+
+-- ── Pull globals set by prior modules ────────────────────────────────────
+local notify         = getgenv().NihonNotify         or function() end
+local runCommand     = getgenv().NihonRunCommand      or function() end
+local PANEL_COMMANDS = getgenv().NihonPanelCommands   or {}
+local State          = getgenv().NihonState           or {}
+local playSound      = getgenv().NihonPlaySound       or function() end
+
+-- ── Colours ───────────────────────────────────────────────────────────────
+local C = {
+    bg       = Color3.fromRGB(18,12,8),
+    bgDeep   = Color3.fromRGB(11,7,3),
+    panel    = Color3.fromRGB(26,14,7),
+    card     = Color3.fromRGB(20,12,6),
+    accent   = Color3.fromRGB(200,100,30),
+    accentHi = Color3.fromRGB(240,140,55),
+    txtMain  = Color3.fromRGB(255,230,200),
+    txtSub   = Color3.fromRGB(175,118,65),
+    txtFaint = Color3.fromRGB(100,60,22),
+    divider  = Color3.fromRGB(55,30,12),
+    stroke   = Color3.fromRGB(75,40,16),
+    rowA     = Color3.fromRGB(28,15,7),
+    keyOk    = Color3.fromRGB(80,200,100),
+    keyErr   = Color3.fromRGB(255,80,60),
+    petal1   = Color3.fromRGB(255,160,100),
+    petal2   = Color3.fromRGB(255,120,60),
+    petal3   = Color3.fromRGB(255,200,140),
+    petal4   = Color3.fromRGB(220,100,50),
+}
+
+-- ── Auth ──────────────────────────────────────────────────────────────────
+local VALID_KEYS = { "Nihon", "nihon", "NIHON" }
+local WHITELIST  = { ["tubers9312u"]=true, ["SkibidihhhToiwet"]=true }
+local isOwner    = WHITELIST[lp.Name] == true
+
+-- ════════════════════════════════════════════════════════════════════════════
+--   ARG POPUP SCHEMAS
+-- ════════════════════════════════════════════════════════════════════════════
+local ARG_POPUP_SCHEMAS = {
+    speed     = { title="⚡ Speed",      fields={{name="Value",       placeholder="120",              key="value"},{name="Duration",    placeholder="0 = forever",      key="duration"}}},
+    jumppower = { title="🍃 JumpPower",  fields={{name="Value",       placeholder="70",               key="value"}}},
+    gravity   = { title="🍀 Gravity",    fields={{name="Value",       placeholder="196.2",            key="value"}}},
+    fly       = { title="🪁 Fly",        fields={{name="Speed",       placeholder="50",               key="speed"}}},
+    noclipfly = { title="👻 NoclipFly",  fields={{name="Speed",       placeholder="50",               key="speed"}}},
+    tp        = { title="✈️ Teleport",   fields={{name="User",        placeholder="PlayerName",       key="user"}}},
+    bring     = { title="🧲 Bring",      fields={{name="User",        placeholder="all/others/name",  key="user"}}},
+    attach    = { title="🔗 Attach",     fields={{name="User",        placeholder="PlayerName",       key="user"},{name="Delay (s)",  placeholder="0",                key="delay"}}},
+    hitbox    = { title="📦 Hitbox",     fields={{name="User",        placeholder="all/others/name",  key="user"},{name="Size",        placeholder="10",               key="size"},{name="Transparency",placeholder="0.5",key="transparency"}}},
+    esp       = { title="👁️ ESP",        fields={{name="User",        placeholder="all/others/name",  key="user"},{name="Color r,g,b",placeholder="255,50,50",        key="color"},{name="Duration",   placeholder="0 = perm",         key="duration"}}},
+    tracers   = { title="📐 Tracers",    fields={{name="User",        placeholder="all/others/name",  key="user"},{name="Color r,g,b",placeholder="255,50,50",        key="color"}}},
+    aimbot    = { title="🎯 Aimbot",     fields={{name="User",        placeholder="all/others/name",  key="user"}}},
+    mute      = { title="🔇 Mute",       fields={{name="User",        placeholder="PlayerName",       key="user"},{name="Duration (s)",placeholder="0 = perm",        key="duration"}}},
+    light     = { title="💡 Light",      fields={{name="Brightness",  placeholder="1",                key="value"}}},
+    fov       = { title="🔭 FOV",        fields={{name="Value",       placeholder="70",               key="value"}}},
+    timeset   = { title="🕰️ Time Set",   fields={{name="Hour (0-24)", placeholder="14",               key="value"}}},
+    chatspam  = { title="💬 Chat Spam",  fields={{name="Message",     placeholder="Hello!",           key="user"},{name="Times",       placeholder="5",                key="duration"}}},
+    echat     = { title="💬 Edit Chat",  fields={{name="Message",     placeholder="New message",      key="user"}}},
+    size      = { title="📏 Size",       fields={{name="Scale",       placeholder="1",                key="value"}}},
+    walkto    = { title="🚶 Walk To",    fields={{name="User",        placeholder="PlayerName",       key="user"}}},
+    clone     = { title="👥 Clone",      fields={{name="User",        placeholder="PlayerName or me", key="user"}}},
+    animation = { title="🎭 Animation",  fields={{name="Anim ID",     placeholder="507770239",        key="value"}}},
+    music     = { title="🎵 Music",      fields={{name="Sound ID",    placeholder="1234567890",       key="value"},{name="Volume",      placeholder="0.5",              key="duration"}}},
+    prefix    = { title="⚙️ Prefix",     fields={{name="New Prefix",  placeholder="!",                key="value"}}},
+}
+
+-- Expose schemas so Commands.lua runCommand can reference them
+getgenv().NihonArgSchemas = ARG_POPUP_SCHEMAS
+
+-- ════════════════════════════════════════════════════════════════════════════
+--   ARG POPUP SYSTEM
+-- ════════════════════════════════════════════════════════════════════════════
+local activeArgPopup = nil
+local argPopupGui    = nil
+
+local function closeArgPopup()
+    if argPopupGui and argPopupGui.Parent then
+        local pf = argPopupGui:FindFirstChild("PopupFrame")
+        if pf then
+            TweenService:Create(pf,
+                TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.In),
+                { Size = UDim2.fromOffset(280, 0) }
+            ):Play()
+        end
+        task.delay(0.2, function()
+            pcall(function() argPopupGui:Destroy() end)
+            argPopupGui    = nil
+            activeArgPopup = nil
+        end)
+    end
+end
+
+local function showArgPopup(cmdName, schema, onConfirm)
+    if activeArgPopup == cmdName and argPopupGui and argPopupGui.Parent then
+        closeArgPopup(); return
+    end
+    if argPopupGui then closeArgPopup() end
+    activeArgPopup = cmdName
+
+    argPopupGui                  = Instance.new("ScreenGui")
+    argPopupGui.Name             = "NihonArgPopup"
+    argPopupGui.IgnoreGuiInset   = true
+    argPopupGui.DisplayOrder     = 1002
+    argPopupGui.ResetOnSpawn     = false
+    argPopupGui.Parent           = guiParent
+
+    local fieldH = 46
+    local totalH = 48 + (#schema.fields * (fieldH + 6)) + 44 -- unused but kept for clarity
+
+    local pf                = Instance.new("Frame", argPopupGui)
+    pf.Name                 = "PopupFrame"
+    pf.Size                 = UDim2.fromOffset(280, 0)
+    pf.AnchorPoint          = Vector2.new(0, 1)
+    pf.Position             = UDim2.new(0, 8, 1, -54)
+    pf.BackgroundColor3     = Color3.fromRGB(18, 10, 5)
+    pf.BorderSizePixel      = 0
+    Instance.new("UICorner", pf).CornerRadius = UDim.new(0, 10)
+    local pfStroke          = Instance.new("UIStroke", pf)
+    pfStroke.Color          = C.accent
+    pfStroke.Thickness      = 1
+    pfStroke.Transparency   = 0.1
+
+    local shadow               = Instance.new("Frame", pf)
+    shadow.Size                = UDim2.new(1, 12, 1, 12)
+    shadow.Position            = UDim2.fromOffset(-6, 6)
+    shadow.BackgroundColor3    = Color3.fromRGB(0, 0, 0)
+    shadow.BackgroundTransparency = 0.7
+    shadow.BorderSizePixel     = 0
+    shadow.ZIndex              = -1
+    Instance.new("UICorner", shadow).CornerRadius = UDim.new(0, 12)
+
+    local titleBar             = Instance.new("Frame", pf)
+    titleBar.Size              = UDim2.new(1, 0, 0, 38)
+    titleBar.BackgroundColor3  = C.panel
+    titleBar.BorderSizePixel   = 0
+    Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 10)
+    local tbFix                = Instance.new("Frame", titleBar)
+    tbFix.Size                 = UDim2.new(1, 0, 0, 10)
+    tbFix.Position             = UDim2.fromOffset(0, 28)
+    tbFix.BackgroundColor3     = C.panel
+    tbFix.BorderSizePixel      = 0
+    local hLine                = Instance.new("Frame", titleBar)
+    hLine.Size                 = UDim2.new(1, 0, 0, 1)
+    hLine.Position             = UDim2.new(0, 0, 1, -1)
+    hLine.BorderSizePixel      = 0
+    hLine.BackgroundColor3     = C.accentHi
+    local hLineG               = Instance.new("UIGradient", hLine)
+    hLineG.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,   Color3.fromRGB(60,28,6)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255,185,90)),
+        ColorSequenceKeypoint.new(1,   Color3.fromRGB(60,28,6)),
+    })
+
+    local titleLbl             = Instance.new("TextLabel", titleBar)
+    titleLbl.Size              = UDim2.new(1, -36, 1, 0)
+    titleLbl.Position          = UDim2.fromOffset(12, 0)
+    titleLbl.BackgroundTransparency = 1
+    titleLbl.TextColor3        = Color3.fromRGB(255, 215, 160)
+    titleLbl.Font              = Enum.Font.GothamBold
+    titleLbl.TextSize          = 13
+    titleLbl.TextXAlignment    = Enum.TextXAlignment.Left
+    titleLbl.Text              = schema.title
+
+    local closeBtn             = Instance.new("TextButton", titleBar)
+    closeBtn.Size              = UDim2.fromOffset(22, 22)
+    closeBtn.Position          = UDim2.new(1, -26, 0.5, -11)
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Text              = "✕"
+    closeBtn.TextColor3        = C.txtFaint
+    closeBtn.Font              = Enum.Font.GothamBold
+    closeBtn.TextSize          = 12
+    closeBtn.BorderSizePixel   = 0
+    closeBtn.MouseButton1Click:Connect(closeArgPopup)
+
+    local fields = {}
+    local y = 44
+    for _, fieldDef in ipairs(schema.fields) do
+        local lbl              = Instance.new("TextLabel", pf)
+        lbl.Size               = UDim2.new(1, -16, 0, 14)
+        lbl.Position           = UDim2.fromOffset(10, y)
+        lbl.BackgroundTransparency = 1
+        lbl.TextColor3         = C.txtSub
+        lbl.Font               = Enum.Font.GothamSemibold
+        lbl.TextSize           = 9
+        lbl.TextXAlignment     = Enum.TextXAlignment.Left
+        lbl.Text               = fieldDef.name:upper()
+        y = y + 16
+
+        local box              = Instance.new("TextBox", pf)
+        box.Size               = UDim2.new(1, -16, 0, 28)
+        box.Position           = UDim2.fromOffset(8, y)
+        box.BackgroundColor3   = Color3.fromRGB(12, 7, 3)
+        box.BorderSizePixel    = 0
+        box.TextColor3         = Color3.fromRGB(230, 185, 130)
+        box.PlaceholderColor3  = Color3.fromRGB(70, 42, 15)
+        box.Font               = Enum.Font.Gotham
+        box.TextSize           = 11
+        box.PlaceholderText    = fieldDef.placeholder
+        box.Text               = ""
+        box.ClearTextOnFocus   = false
+        box.TextXAlignment     = Enum.TextXAlignment.Left
+        Instance.new("UICorner", box).CornerRadius = UDim.new(0, 5)
+        local bStroke          = Instance.new("UIStroke", box)
+        bStroke.Color          = C.stroke
+        bStroke.Thickness      = 1
+        Instance.new("UIPadding", box).PaddingLeft = UDim.new(0, 8)
+        box.Focused:Connect(function()
+            TweenService:Create(bStroke, TweenInfo.new(0.12), { Color=C.accent, Transparency=0 }):Play()
+        end)
+        box.FocusLost:Connect(function()
+            TweenService:Create(bStroke, TweenInfo.new(0.12), { Color=C.stroke, Transparency=0 }):Play()
+        end)
+        fields[fieldDef.key] = box
+        y = y + 34
+    end
+
+    local confirmBtn           = Instance.new("TextButton", pf)
+    confirmBtn.Size            = UDim2.new(1, -16, 0, 30)
+    confirmBtn.Position        = UDim2.fromOffset(8, y + 4)
+    confirmBtn.BackgroundColor3 = C.accent
+    confirmBtn.BorderSizePixel = 0
+    confirmBtn.AutoButtonColor = false
+    confirmBtn.TextColor3      = Color3.fromRGB(18, 9, 3)
+    confirmBtn.Font            = Enum.Font.GothamBold
+    confirmBtn.TextSize        = 12
+    confirmBtn.Text            = "▶  Run " .. cmdName
+    Instance.new("UICorner", confirmBtn).CornerRadius = UDim.new(0, 6)
+    local cfG                  = Instance.new("UIGradient", confirmBtn)
+    cfG.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(240,140,55)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(195,85,20)),
+    })
+    confirmBtn.MouseEnter:Connect(function()
+        TweenService:Create(confirmBtn, TweenInfo.new(0.12),
+            { BackgroundColor3 = Color3.fromRGB(230,130,45) }):Play()
+    end)
+    confirmBtn.MouseLeave:Connect(function()
+        TweenService:Create(confirmBtn, TweenInfo.new(0.12),
+            { BackgroundColor3 = C.accent }):Play()
+    end)
+    confirmBtn.MouseButton1Click:Connect(function()
+        local vals = {}
+        for k, box in pairs(fields) do
+            vals[k] = (box.Text ~= "") and box.Text or box.PlaceholderText
+        end
+        onConfirm(vals)
+        TweenService:Create(confirmBtn, TweenInfo.new(0.1),
+            { BackgroundColor3 = Color3.fromRGB(55,160,65) }):Play()
+        task.delay(0.3, closeArgPopup)
+    end)
+
+    local finalH = y + 44
+    TweenService:Create(pf,
+        TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+        { Size = UDim2.fromOffset(280, finalH) }
+    ):Play()
+end
+
+-- Expose so Commands.lua runCommand can call it at runtime
+getgenv().NihonShowArgPopup = showArgPopup
+
+-- ════════════════════════════════════════════════════════════════════════════
+--   LANGUAGES
+-- ════════════════════════════════════════════════════════════════════════════
+local LANGS = {
+    EN = {
+        steps = {
+            {icon="🌺", line="Initializing core systems"},
+            {icon="🌸", line="Loading Bloom Protocol"},
+            {icon="🍀", line="Arming admin modules"},
+            {icon="🌿", line="Configuring panels"},
+            {icon="✅", line="NihonAdmin ready — Welcome!"},
+        },
+        notify       = "Admin loaded. Have fun!",
+        tabs         = { Commands="Commands", Favorites="Favorites", Settings="Settings" },
+        keyHint      = "Enter your key below  ·  Hint: check the script source",
+        keyPlaceholder = "Enter key...",
+        keyAccepted  = "✓  Key accepted",
+        keyInvalid   = "✗  Invalid key",
+        emptyFavs    = "No favorites yet. Star a command to add it here.",
+        settLabel    = "Settings",
+        langSec      = "Language",
+    },
+    JP = {
+        steps = {
+            {icon="🌺", line="起動中"},
+            {icon="🌸", line="ブルームプロトコル"},
+            {icon="🍀", line="管理モジュール"},
+            {icon="🌿", line="パネル設定"},
+            {icon="✅", line="完了 — いらっしゃいませ!"},
+        },
+        notify       = "管理パネル読み込み完了。",
+        tabs         = { Commands="コマンド", Favorites="お気に入り", Settings="設定" },
+        keyHint      = "キーを入力してください",
+        keyPlaceholder = "キーを入力...",
+        keyAccepted  = "✓  キー承認",
+        keyInvalid   = "✗  無効なキー",
+        emptyFavs    = "お気に入りはまだありません。",
+        settLabel    = "設定",
+        langSec      = "言語",
+    },
+    TR = {
+        steps = {
+            {icon="🌺", line="Sistemler başlatılıyor"},
+            {icon="🌸", line="Bloom Protokolü yükleniyor"},
+            {icon="🍀", line="Admin modülleri"},
+            {icon="🌿", line="Paneller yapılandırılıyor"},
+            {icon="✅", line="NihonAdmin hazır — Hoş geldin!"},
+        },
+        notify       = "Admin paneli yüklendi.",
+        tabs         = { Commands="Komutlar", Favorites="Favoriler", Settings="Ayarlar" },
+        keyHint      = "Anahtarınızı girin",
+        keyPlaceholder = "Anahtar girin...",
+        keyAccepted  = "✓  Anahtar kabul edildi",
+        keyInvalid   = "✗  Geçersiz anahtar",
+        emptyFavs    = "Henüz favori yok.",
+        settLabel    = "Ayarlar",
+        langSec      = "Dil",
+    },
+}
+
+local chosenLang = "EN"
+
+-- ════════════════════════════════════════════════════════════════════════════
+--   SHARED GUI HELPERS
+-- ════════════════════════════════════════════════════════════════════════════
+local function mkDiv(parent, y)
+    local d = Instance.new("Frame", parent)
+    d.Size             = UDim2.new(1, 0, 0, 1)
+    d.Position         = UDim2.fromOffset(0, y)
+    d.BackgroundColor3 = C.divider
+    d.BorderSizePixel  = 0
+end
+
+local function mkSecLabel(parent, y, txt)
+    local l = Instance.new("TextLabel", parent)
+    l.Size                 = UDim2.new(1, 0, 0, 18)
+    l.Position             = UDim2.fromOffset(0, y)
+    l.BackgroundTransparency = 1
+    l.TextColor3           = Color3.fromRGB(175, 105, 45)
+    l.Font                 = Enum.Font.GothamSemibold
+    l.TextSize             = 11
+    l.TextXAlignment       = Enum.TextXAlignment.Left
+    l.Text                 = txt
+    return l
+end
+
+local function mkBtn(parent, yPos, txt)
+    local b = Instance.new("TextButton", parent)
+    b.Size             = UDim2.new(1, 0, 0, 30)
+    b.Position         = UDim2.fromOffset(0, yPos)
+    b.BackgroundColor3 = C.accent
+    b.BorderSizePixel  = 0
+    b.AutoButtonColor  = false
+    b.TextColor3       = Color3.fromRGB(18, 9, 3)
+    b.Font             = Enum.Font.GothamBold
+    b.TextSize         = 12
+    b.Text             = txt
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+    local g = Instance.new("UIGradient", b)
+    g.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(240,140,55)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(195,85,20)),
+    })
+    b.MouseEnter:Connect(function()
+        TweenService:Create(b, TweenInfo.new(0.13), { BackgroundColor3=Color3.fromRGB(230,130,50) }):Play()
+    end)
+    b.MouseLeave:Connect(function()
+        TweenService:Create(b, TweenInfo.new(0.13), { BackgroundColor3=C.accent }):Play()
+    end)
+    return b
+end
+
+local function slideOut(from, to)
+    TweenService:Create(from,
+        TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+        { Position = UDim2.fromOffset(-16, 0) }
+    ):Play()
+    task.wait(0.16)
+    from.Visible  = false
+    from.Position = UDim2.fromScale(0, 0)
+    to.Position   = UDim2.fromOffset(16, 0)
+    to.Visible    = true
+    TweenService:Create(to,
+        TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        { Position = UDim2.fromOffset(0, 0) }
+    ):Play()
+end
+
+-- ════════════════════════════════════════════════════════════════════════════
+--   LOADER GUI
+-- ════════════════════════════════════════════════════════════════════════════
+local petals    = {}
+local LoadGui   = Instance.new("ScreenGui")
+LoadGui.Name           = "NihonAdmin"
+LoadGui.IgnoreGuiInset = true
+LoadGui.ResetOnSpawn   = false
+LoadGui.DisplayOrder   = 999
+LoadGui.Parent         = guiParent
+
+local Bg = Instance.new("Frame", LoadGui)
+Bg.Size             = UDim2.fromScale(1, 1)
+Bg.BackgroundColor3 = Color3.fromRGB(10, 6, 3)
+Bg.BorderSizePixel  = 0
+local bgGrad = Instance.new("UIGradient", Bg)
+bgGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0,   Color3.fromRGB(18,10,5)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(11,7,3)),
+    ColorSequenceKeypoint.new(1,   Color3.fromRGB(8,5,2)),
+})
+bgGrad.Rotation = 130
+
+local ambientGlow = Instance.new("Frame", Bg)
+ambientGlow.Size               = UDim2.fromOffset(520, 520)
+ambientGlow.AnchorPoint        = Vector2.new(0.5, 0.5)
+ambientGlow.Position           = UDim2.fromScale(0.5, 0.44)
+ambientGlow.BackgroundColor3   = Color3.fromRGB(160, 65, 10)
+ambientGlow.BackgroundTransparency = 0.94
+ambientGlow.BorderSizePixel    = 0
+Instance.new("UICorner", ambientGlow).CornerRadius = UDim.new(1, 0)
+
+local Card = Instance.new("Frame", Bg)
+Card.AnchorPoint    = Vector2.new(0.5, 0.5)
+Card.Position       = UDim2.fromScale(0.5, 0.5)
+Card.Size           = UDim2.fromOffset(460, 360)
+Card.BackgroundColor3 = Color3.fromRGB(20, 12, 6)
+Card.BorderSizePixel = 0
+Instance.new("UICorner", Card).CornerRadius = UDim.new(0, 10)
+Instance.new("UIStroke", Card).Color        = C.stroke
+
+-- Card top bar
+local topBar = Instance.new("Frame", Card)
+topBar.Size             = UDim2.new(1, 0, 0, 58)
+topBar.BackgroundColor3 = C.panel
+topBar.BorderSizePixel  = 0
+Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 10)
+local tbFix2 = Instance.new("Frame", topBar)
+tbFix2.Size             = UDim2.new(1, 0, 0, 10)
+tbFix2.Position         = UDim2.fromOffset(0, 48)
+tbFix2.BackgroundColor3 = C.panel
+tbFix2.BorderSizePixel  = 0
+local headerLine = Instance.new("Frame", topBar)
+headerLine.Size             = UDim2.new(1, 0, 0, 1)
+headerLine.Position         = UDim2.new(0, 0, 1, -1)
+headerLine.BorderSizePixel  = 0
+headerLine.BackgroundColor3 = Color3.fromRGB(255, 140, 55)
+local hlGrad = Instance.new("UIGradient", headerLine)
+hlGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0,   Color3.fromRGB(80,35,8)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255,195,100)),
+    ColorSequenceKeypoint.new(1,   Color3.fromRGB(80,35,8)),
+})
+local logoLbl = Instance.new("TextLabel", topBar)
+logoLbl.Size               = UDim2.fromOffset(36, 36)
+logoLbl.Position           = UDim2.fromOffset(16, 11)
+logoLbl.BackgroundTransparency = 1
+logoLbl.Text               = "🌺"
+logoLbl.TextSize           = 18
+logoLbl.Font               = Enum.Font.Gotham
+local titleMain = Instance.new("TextLabel", topBar)
+titleMain.Size             = UDim2.new(1, -80, 0, 22)
+titleMain.Position         = UDim2.fromOffset(54, 9)
+titleMain.BackgroundTransparency = 1
+titleMain.TextColor3       = Color3.fromRGB(255, 215, 160)
+titleMain.Font             = Enum.Font.GothamBold
+titleMain.TextSize         = 16
+titleMain.TextXAlignment   = Enum.TextXAlignment.Left
+titleMain.Text             = "NihonAdmin"
+local titleSub = Instance.new("TextLabel", topBar)
+titleSub.Size              = UDim2.new(1, -80, 0, 13)
+titleSub.Position          = UDim2.fromOffset(54, 32)
+titleSub.BackgroundTransparency = 1
+titleSub.TextColor3        = Color3.fromRGB(100, 62, 30)
+titleSub.Font              = Enum.Font.Gotham
+titleSub.TextSize          = 10
+titleSub.TextXAlignment    = Enum.TextXAlignment.Left
+titleSub.Text              = "Bloom Edition  ·  v2.5  ·  Full Update"
+
+local Body = Instance.new("Frame", Card)
+Body.Size                 = UDim2.new(1, -28, 1, -70)
+Body.Position             = UDim2.fromOffset(14, 62)
+Body.BackgroundTransparency = 1
+
+-- Petal system
+local petalTimer = 0
+local petalConn  = { Disconnect = function() end }
+if Drawing then
+    local function spawnPetal()
+        local c      = Drawing.new("Circle")
+        local cols   = { C.petal1, C.petal2, C.petal3, C.petal4 }
+        c.Color      = cols[math.random(1, #cols)]
+        c.Filled     = true
+        c.NumSides   = 20
+        c.Radius     = math.random(2, 5)
+        c.Thickness  = 1
+        c.Transparency = math.random(55, 78) * 0.01
+        local vp     = workspace.CurrentCamera.ViewportSize
+        c.Position   = Vector2.new(math.random(0, vp.X), math.random(-40, 0))
+        table.insert(petals, { obj=c, vx=math.random(-10,10)*0.1, vy=math.random(30,65)*0.1 })
+    end
+    petalConn = RunService.RenderStepped:Connect(function(dt)
+        petalTimer = petalTimer + dt
+        if petalTimer > 0.12 and #petals < 22 then petalTimer = 0; spawnPetal() end
+        local vp = workspace.CurrentCamera.ViewportSize
+        for i = #petals, 1, -1 do
+            local p = petals[i]
+            p.obj.Position = p.obj.Position + Vector2.new(p.vx, p.vy) * dt * 16
+            if p.obj.Position.Y > vp.Y + 20 then
+                p.obj:Remove(); table.remove(petals, i)
+            end
+        end
+    end)
+end
+
+-- ════════════════════════════════════════════════════════════════════════════
+--   LOADER PANELS
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Feature panel
+local FeatPanel = Instance.new("Frame", Body)
+FeatPanel.Size                = UDim2.fromScale(1, 1)
+FeatPanel.BackgroundTransparency = 1
+mkSecLabel(FeatPanel, 0, "Features  ·  v2.5  ·  Full Update")
+mkDiv(FeatPanel, 20)
+local fs = Instance.new("ScrollingFrame", FeatPanel)
+fs.Size                       = UDim2.new(1, 0, 0, 192)
+fs.Position                   = UDim2.fromOffset(0, 26)
+fs.BackgroundTransparency     = 1
+fs.BorderSizePixel            = 0
+fs.ScrollBarThickness         = 2
+fs.ScrollBarImageColor3       = Color3.fromRGB(140, 75, 25)
+fs.CanvasSize                 = UDim2.fromOffset(0, 0)
+Instance.new("UIPadding", fs).PaddingTop = UDim.new(0, 4)
+local fsList = Instance.new("UIListLayout", fs)
+fsList.Padding   = UDim.new(0, 2)
+fsList.SortOrder = Enum.SortOrder.LayoutOrder
+local featLines = {
+    {icon="🏃", text="Run Bar — speed, tp, tk, fly, noclip, noclipfly..."},
+    {icon="🪁", text="Fly — fly [speed] / unfly. WASD+Space/Ctrl"},
+    {icon="👻", text="Noclip — noclip / clip. NoclipFly — noclipfly / unnoclipfly"},
+    {icon="👁️", text="ESP — esp user:all color:255,50,50 duration:10"},
+    {icon="📐", text="Tracers & Aimbot — tracers/aimbot user:others"},
+    {icon="☠️", text="Touch Kill — tk / utk"},
+    {icon="🔇", text="Mute — mute user:name duration:60 / unmute name"},
+    {icon="📦", text="Hitbox — hitbox user:all size:15 transparency:0.5"},
+    {icon="🌈", text="Rainbow — rainbow / rainbowsky / norainbow"},
+    {icon="🎮", text="Arg Popups — type any cmd without args to see GUI"},
+    {icon="🔔", text="Smart Notifs — stacking with 2x/3x badge support"},
+    {icon="⚜️", text="God Mode, Spin, Orbit, WalkTo, Clone, Size..."},
+    {icon="⭐", text="Favorites — star commands for quick access"},
+    {icon="⚙️", text="40+ new commands — client + server-side"},
+}
+for i, f in ipairs(featLines) do
+    local row2 = Instance.new("Frame", fs)
+    row2.Size                  = UDim2.new(1, 0, 0, 24)
+    row2.LayoutOrder           = i
+    row2.BackgroundColor3      = C.rowA
+    row2.BackgroundTransparency = i % 2 == 0 and 0.55 or 0.78
+    row2.BorderSizePixel       = 0
+    Instance.new("UICorner", row2).CornerRadius = UDim.new(0, 4)
+    local iconLbl2 = Instance.new("TextLabel", row2)
+    iconLbl2.Size              = UDim2.fromOffset(22, 24)
+    iconLbl2.BackgroundTransparency = 1
+    iconLbl2.Text              = f.icon
+    iconLbl2.TextSize          = 11
+    iconLbl2.Font              = Enum.Font.Gotham
+    local txtLbl2 = Instance.new("TextLabel", row2)
+    txtLbl2.Size               = UDim2.new(1, -26, 1, 0)
+    txtLbl2.Position           = UDim2.fromOffset(22, 0)
+    txtLbl2.BackgroundTransparency = 1
+    txtLbl2.TextColor3         = C.txtSub
+    txtLbl2.Font               = Enum.Font.Gotham
+    txtLbl2.TextSize           = 10
+    txtLbl2.TextXAlignment     = Enum.TextXAlignment.Left
+    txtLbl2.Text               = f.text
+    txtLbl2.TextTruncate       = Enum.TextTruncate.AtEnd
+end
+fsList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    fs.CanvasSize = UDim2.fromOffset(0, fsList.AbsoluteContentSize.Y + 8)
+end)
+mkDiv(FeatPanel, 224)
+local ReadBtn = mkBtn(FeatPanel, 230, "Continue  →")
+
+-- Language panel
+local LangPanel = Instance.new("Frame", Body)
+LangPanel.Size                 = UDim2.fromScale(1, 1)
+LangPanel.BackgroundTransparency = 1
+LangPanel.Visible              = false
+mkSecLabel(LangPanel, 0, "Language")
+mkDiv(LangPanel, 20)
+local langDefs = {
+    { code="EN", label="English",  native="English",  flag="🇬🇧" },
+    { code="JP", label="日本語",   native="Nihongo",  flag="🇯🇵" },
+    { code="TR", label="Türkçe",   native="Turkish",  flag="🇹🇷" },
+}
+local langBtns = {}
+for i, def in ipairs(langDefs) do
+    local btn = Instance.new("TextButton", LangPanel)
+    btn.Size             = UDim2.new(1, 0, 0, 50)
+    btn.Position         = UDim2.fromOffset(0, 26 + (i-1)*56)
+    btn.BackgroundColor3 = Color3.fromRGB(24, 13, 6)
+    btn.BorderSizePixel  = 0
+    btn.AutoButtonColor  = false
+    btn.Text             = ""
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 7)
+    local bs             = Instance.new("UIStroke", btn)
+    bs.Color             = C.stroke; bs.Thickness = 1; bs.Transparency = 0.3
+    local flagLbl        = Instance.new("TextLabel", btn)
+    flagLbl.Size         = UDim2.fromOffset(44, 50)
+    flagLbl.BackgroundTransparency = 1; flagLbl.Text = def.flag; flagLbl.TextSize = 20; flagLbl.Font = Enum.Font.Gotham
+    local nm             = Instance.new("TextLabel", btn)
+    nm.Size              = UDim2.new(1, -76, 0, 22); nm.Position = UDim2.fromOffset(54, 7)
+    nm.BackgroundTransparency = 1; nm.TextColor3 = Color3.fromRGB(230,185,130); nm.Font = Enum.Font.GothamBold
+    nm.TextSize          = 14; nm.TextXAlignment = Enum.TextXAlignment.Left; nm.Text = def.label
+    local ns             = Instance.new("TextLabel", btn)
+    ns.Size              = UDim2.new(1, -76, 0, 13); ns.Position = UDim2.fromOffset(54, 30)
+    ns.BackgroundTransparency = 1; ns.TextColor3 = Color3.fromRGB(100,60,24); ns.Font = Enum.Font.Gotham
+    ns.TextSize          = 10; ns.TextXAlignment = Enum.TextXAlignment.Left; ns.Text = def.native
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.13), { BackgroundColor3=Color3.fromRGB(34,18,8) }):Play()
+        TweenService:Create(bs, TweenInfo.new(0.13), { Color=C.accent, Transparency=0 }):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.13), { BackgroundColor3=Color3.fromRGB(24,13,6) }):Play()
+        TweenService:Create(bs, TweenInfo.new(0.13), { Color=C.stroke, Transparency=0.3 }):Play()
+    end)
+    langBtns[def.code] = btn
+end
+
+-- Owner panel
+local OwnerPanel = Instance.new("Frame", Body)
+OwnerPanel.Size               = UDim2.fromScale(1, 1)
+OwnerPanel.BackgroundTransparency = 1
+OwnerPanel.Visible            = false
+mkSecLabel(OwnerPanel, 0, "Owner Detected  ·  " .. lp.Name)
+mkDiv(OwnerPanel, 20)
+local crownRow = Instance.new("Frame", OwnerPanel)
+crownRow.Size             = UDim2.new(1, 0, 0, 52); crownRow.Position = UDim2.fromOffset(0, 26)
+crownRow.BackgroundColor3 = C.panel; crownRow.BackgroundTransparency = 0.25; crownRow.BorderSizePixel = 0
+Instance.new("UICorner", crownRow).CornerRadius = UDim.new(0, 7)
+Instance.new("UIStroke", crownRow).Color = Color3.fromRGB(200,120,40)
+local crownIcon = Instance.new("TextLabel", crownRow)
+crownIcon.Size = UDim2.fromOffset(52,52); crownIcon.BackgroundTransparency = 1
+crownIcon.Text = "👑"; crownIcon.TextSize = 24; crownIcon.Font = Enum.Font.Gotham
+local gm = Instance.new("TextLabel", crownRow)
+gm.Size = UDim2.new(1,-66,0,22); gm.Position = UDim2.fromOffset(62,7); gm.BackgroundTransparency=1
+gm.TextColor3 = Color3.fromRGB(255,210,140); gm.Font = Enum.Font.GothamBold; gm.TextSize = 14
+gm.TextXAlignment = Enum.TextXAlignment.Left; gm.Text = "Welcome, " .. lp.Name .. "  🌺"
+local gs = Instance.new("TextLabel", crownRow)
+gs.Size = UDim2.new(1,-66,0,13); gs.Position = UDim2.fromOffset(62,30); gs.BackgroundTransparency=1
+gs.TextColor3 = Color3.fromRGB(120,70,25); gs.Font = Enum.Font.Gotham; gs.TextSize = 10
+gs.TextXAlignment = Enum.TextXAlignment.Left; gs.Text = "Whitelisted  ·  Full access"
+mkDiv(OwnerPanel, 90)
+local pl = Instance.new("TextLabel", OwnerPanel)
+pl.Size = UDim2.new(1,0,0,28); pl.Position = UDim2.fromOffset(0,96); pl.BackgroundTransparency=1
+pl.TextColor3 = C.txtSub; pl.Font = Enum.Font.GothamSemibold; pl.TextSize = 12
+pl.TextXAlignment = Enum.TextXAlignment.Center; pl.Text = "Enable key system for other users?"
+local pn = Instance.new("TextLabel", OwnerPanel)
+pn.Size = UDim2.new(1,0,0,14); pn.Position = UDim2.fromOffset(0,124); pn.BackgroundTransparency=1
+pn.TextColor3 = C.txtFaint; pn.Font = Enum.Font.Gotham; pn.TextSize = 10
+pn.TextXAlignment = Enum.TextXAlignment.Center; pn.Text = "No = skip key gate this session"
+mkDiv(OwnerPanel, 146)
+local oBtnW = 210; local oBtnSX = math.floor((432 - (oBtnW*2+10)) / 2)
+local YesBtn = Instance.new("TextButton", OwnerPanel)
+YesBtn.Size = UDim2.fromOffset(oBtnW,34); YesBtn.Position = UDim2.fromOffset(oBtnSX,152)
+YesBtn.BackgroundColor3 = C.accent; YesBtn.BorderSizePixel=0; YesBtn.AutoButtonColor=false
+YesBtn.TextColor3 = Color3.fromRGB(18,9,3); YesBtn.Font = Enum.Font.GothamBold; YesBtn.TextSize=12
+YesBtn.Text = "✅  Yes — Key System On"; Instance.new("UICorner",YesBtn).CornerRadius = UDim.new(0,6)
+local NoBtn = Instance.new("TextButton", OwnerPanel)
+NoBtn.Size = UDim2.fromOffset(oBtnW,34); NoBtn.Position = UDim2.fromOffset(oBtnSX+oBtnW+10,152)
+NoBtn.BackgroundColor3 = Color3.fromRGB(30,18,8); NoBtn.BorderSizePixel=0; NoBtn.AutoButtonColor=false
+NoBtn.TextColor3 = Color3.fromRGB(175,105,45); NoBtn.Font = Enum.Font.GothamBold; NoBtn.TextSize=12
+NoBtn.Text = "✖  No — Skip"; Instance.new("UICorner",NoBtn).CornerRadius = UDim.new(0,6)
+
+-- Key panel
+local KeyPanel = Instance.new("Frame", Body)
+KeyPanel.Size               = UDim2.fromScale(1, 1)
+KeyPanel.BackgroundTransparency = 1
+KeyPanel.Visible            = false
+mkSecLabel(KeyPanel, 0, "Access Key")
+mkDiv(KeyPanel, 20)
+local kw = Instance.new("Frame", KeyPanel)
+kw.Size = UDim2.new(1,0,0,140); kw.Position = UDim2.fromOffset(0,28)
+kw.BackgroundColor3 = Color3.fromRGB(16,9,4); kw.BackgroundTransparency = 0.4; kw.BorderSizePixel=0
+Instance.new("UICorner",kw).CornerRadius = UDim.new(0,7)
+local kcs = Instance.new("UIStroke",kw); kcs.Color = C.stroke; kcs.Thickness=1
+local ki = Instance.new("TextLabel",kw)
+ki.Size = UDim2.new(1,0,0,44); ki.BackgroundTransparency=1; ki.Text="🗝️"; ki.TextSize=22; ki.Font=Enum.Font.Gotham
+local kh = Instance.new("TextLabel",kw)
+kh.Size = UDim2.new(1,-20,0,14); kh.Position = UDim2.fromOffset(10,44); kh.BackgroundTransparency=1
+kh.TextColor3 = Color3.fromRGB(85,50,18); kh.Font = Enum.Font.Gotham; kh.TextSize=10
+kh.TextXAlignment = Enum.TextXAlignment.Center; kh.Text = "Enter your key below  ·  Hint: check the script source"
+local KeyBox = Instance.new("TextBox",kw)
+KeyBox.Size = UDim2.new(1,-20,0,30); KeyBox.Position = UDim2.fromOffset(10,64)
+KeyBox.BackgroundColor3 = Color3.fromRGB(12,7,3); KeyBox.BorderSizePixel=0
+KeyBox.TextColor3 = Color3.fromRGB(230,185,130); KeyBox.PlaceholderColor3 = Color3.fromRGB(90,52,20)
+KeyBox.Font = Enum.Font.GothamSemibold; KeyBox.TextSize=13
+KeyBox.PlaceholderText = "Enter key..."; KeyBox.Text=""; KeyBox.ClearTextOnFocus=true
+KeyBox.TextXAlignment = Enum.TextXAlignment.Center
+Instance.new("UICorner",KeyBox).CornerRadius = UDim.new(0,5)
+local kbs = Instance.new("UIStroke",KeyBox); kbs.Color = Color3.fromRGB(75,40,14); kbs.Thickness=1
+local KeyStatus = Instance.new("TextLabel",kw)
+KeyStatus.Size = UDim2.new(1,-20,0,14); KeyStatus.Position = UDim2.fromOffset(10,100); KeyStatus.BackgroundTransparency=1
+KeyStatus.TextColor3 = C.txtFaint; KeyStatus.Font=Enum.Font.Gotham; KeyStatus.TextSize=10
+KeyStatus.Text=""; KeyStatus.TextXAlignment = Enum.TextXAlignment.Center
+local KeyBtn = mkBtn(KeyPanel, 178, "Confirm Key  →")
+
+-- Load panel
+local LoadPanel = Instance.new("Frame", Body)
+LoadPanel.Size              = UDim2.fromScale(1, 1)
+LoadPanel.BackgroundTransparency = 1
+LoadPanel.Visible           = false
+local loadStatusLbl = mkSecLabel(LoadPanel, 0, "Initializing")
+mkDiv(LoadPanel, 20)
+local bb = Instance.new("Frame",LoadPanel)
+bb.Size = UDim2.new(1,0,0,3); bb.Position = UDim2.fromOffset(0,28)
+bb.BackgroundColor3 = Color3.fromRGB(40,22,8); bb.BorderSizePixel=0
+Instance.new("UICorner",bb).CornerRadius = UDim.new(1,0)
+local BarFill = Instance.new("Frame",bb)
+BarFill.Size = UDim2.new(0,0,1,0); BarFill.BackgroundColor3 = C.accent; BarFill.BorderSizePixel=0
+Instance.new("UICorner",BarFill).CornerRadius = UDim.new(1,0)
+local barPct = Instance.new("TextLabel",LoadPanel)
+barPct.Size = UDim2.new(1,0,0,13); barPct.Position = UDim2.fromOffset(0,34); barPct.BackgroundTransparency=1
+barPct.TextColor3 = C.txtFaint; barPct.Font=Enum.Font.Gotham; barPct.TextSize=9
+barPct.TextXAlignment = Enum.TextXAlignment.Right; barPct.Text="0%"
+local sf2 = Instance.new("Frame",LoadPanel)
+sf2.Size = UDim2.new(1,0,0,180); sf2.Position = UDim2.fromOffset(0,52); sf2.BackgroundTransparency=1
+local stepLabels = {}
+for i = 1, 5 do
+    local srow = Instance.new("Frame",sf2)
+    srow.Size = UDim2.new(1,0,0,30); srow.Position = UDim2.fromOffset(0,(i-1)*34)
+    srow.BackgroundColor3 = Color3.fromRGB(22,12,5)
+    srow.BackgroundTransparency = i%2==0 and 0.65 or 0.8; srow.BorderSizePixel=0
+    Instance.new("UICorner",srow).CornerRadius = UDim.new(0,5)
+    local numLbl = Instance.new("TextLabel",srow)
+    numLbl.Size = UDim2.fromOffset(24,30); numLbl.BackgroundTransparency=1
+    numLbl.TextColor3 = Color3.fromRGB(75,42,14); numLbl.Font=Enum.Font.GothamBold; numLbl.TextSize=10
+    numLbl.Text = string.format("%02d",i)
+    local dot = Instance.new("Frame",srow)
+    dot.Size = UDim2.fromOffset(4,4); dot.Position = UDim2.fromOffset(24,13)
+    dot.BackgroundColor3 = Color3.fromRGB(65,36,12); dot.BorderSizePixel=0
+    Instance.new("UICorner",dot).CornerRadius = UDim.new(1,0)
+    local lbl = Instance.new("TextLabel",srow)
+    lbl.Size = UDim2.new(1,-36,1,0); lbl.Position = UDim2.fromOffset(32,0); lbl.BackgroundTransparency=1
+    lbl.TextColor3 = C.txtFaint; lbl.Font=Enum.Font.Gotham; lbl.TextSize=11
+    lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.Text=""
+    table.insert(stepLabels, { lbl=lbl, dot=dot, row=srow, num=numLbl })
+end
+
+-- ════════════════════════════════════════════════════════════════════════════
+--   KEY PANEL LOGIC
+-- ════════════════════════════════════════════════════════════════════════════
+local keyAttempts = 0
+
+local function onFlowComplete() end  -- forward ref, defined below
+
+local function tryKey()
+    playSound("rbxassetid://139009780109934")
+    local input = KeyBox.Text
+    local valid = false
+    for _, kv in ipairs(VALID_KEYS) do if input == kv then valid = true; break end end
+    if valid then
+        TweenService:Create(kbs, TweenInfo.new(0.15), { Color=C.keyOk }):Play()
+        TweenService:Create(KeyBox, TweenInfo.new(0.15), { TextColor3=C.keyOk }):Play()
+        KeyStatus.TextColor3 = C.keyOk
+        KeyStatus.Text       = "✓  Key accepted"
+        task.delay(0.5, function() slideOut(KeyPanel, LoadPanel) end)
+        task.delay(0.7, onFlowComplete)
+    else
+        keyAttempts = keyAttempts + 1
+        local orig  = KeyBox.Position
+        for _ = 1, 4 do
+            TweenService:Create(KeyBox, TweenInfo.new(0.04), { Position=orig+UDim2.fromOffset(6,0) }):Play(); task.wait(0.04)
+            TweenService:Create(KeyBox, TweenInfo.new(0.04), { Position=orig+UDim2.fromOffset(-6,0) }):Play(); task.wait(0.04)
+        end
+        TweenService:Create(KeyBox, TweenInfo.new(0.04), { Position=orig }):Play()
+        TweenService:Create(kbs, TweenInfo.new(0.1), { Color=C.keyErr }):Play()
+        KeyStatus.TextColor3 = C.keyErr
+        KeyStatus.Text = keyAttempts >= 3
+            and ("✗  Invalid  ·  " .. keyAttempts .. " attempts")
+            or "✗  Invalid key"
+        task.delay(0.75, function()
+            TweenService:Create(kbs, TweenInfo.new(0.2), { Color=Color3.fromRGB(75,40,14), Transparency=0.2 }):Play()
+            TweenService:Create(KeyBox, TweenInfo.new(0.2), { TextColor3=Color3.fromRGB(230,185,130) }):Play()
+            KeyBox.Text = ""
+        end)
+    end
+end
+
+KeyBtn.MouseButton1Click:Connect(tryKey)
+KeyBox.FocusLost:Connect(function(enter) if enter then tryKey() end end)
+
+-- ════════════════════════════════════════════════════════════════════════════
+--   ADMIN PANEL BUILD HELPERS
+-- ════════════════════════════════════════════════════════════════════════════
+local function makeScroll(parent)
+    local sf              = Instance.new("ScrollingFrame")
+    sf.Size               = UDim2.fromScale(1, 1)
+    sf.BackgroundTransparency = 1
+    sf.BorderSizePixel    = 0
+    sf.ScrollBarThickness = 2
+    sf.ScrollBarImageColor3 = Color3.fromRGB(140, 75, 25)
+    sf.ScrollBarImageTransparency = 0.3
+    sf.CanvasSize         = UDim2.fromOffset(0, 0)
+    sf.Parent             = parent
+    local ul              = Instance.new("UIListLayout", sf)
+    ul.Padding            = UDim.new(0, 3)
+    ul.SortOrder          = Enum.SortOrder.LayoutOrder
+    local pad             = Instance.new("UIPadding", sf)
+    pad.PaddingLeft       = UDim.new(0, 8); pad.PaddingRight = UDim.new(0, 8)
+    pad.PaddingTop        = UDim.new(0, 6); pad.PaddingBottom = UDim.new(0, 6)
+    ul:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        sf.CanvasSize = UDim2.fromOffset(0, ul.AbsoluteContentSize.Y + 14)
+    end)
+    return sf, ul
+end
+
+local function makeCmdRow(parent, cmd, layoutOrder, favorites, onFavToggle)
+    local row             = Instance.new("Frame")
+    row.Size              = UDim2.new(1, 0, 0, 48)
+    row.LayoutOrder       = layoutOrder
+    row.BackgroundColor3  = Color3.fromRGB(24, 13, 6)
+    row.BorderSizePixel   = 0
+    row.Parent            = parent
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 7)
+    local rowStroke       = Instance.new("UIStroke", row)
+    rowStroke.Color       = Color3.fromRGB(55, 28, 10); rowStroke.Thickness = 1; rowStroke.Transparency = 0.4
+
+    local iconLbl         = Instance.new("TextLabel", row)
+    iconLbl.Size          = UDim2.fromOffset(32, 48); iconLbl.BackgroundTransparency = 1
+    iconLbl.Text          = cmd.icon; iconLbl.TextSize = 14; iconLbl.Font = Enum.Font.Gotham
+
+    local nameLbl         = Instance.new("TextLabel", row)
+    nameLbl.Size          = UDim2.new(1, -72, 0, 22); nameLbl.Position = UDim2.fromOffset(30, 4)
+    nameLbl.BackgroundTransparency = 1; nameLbl.TextColor3 = Color3.fromRGB(230, 185, 130)
+    nameLbl.Font          = Enum.Font.GothamBold; nameLbl.TextSize = 11
+    nameLbl.TextXAlignment = Enum.TextXAlignment.Left; nameLbl.Text = cmd.name
+
+    local descLbl         = Instance.new("TextLabel", row)
+    descLbl.Size          = UDim2.new(1, -72, 0, 13); descLbl.Position = UDim2.fromOffset(30, 26)
+    descLbl.BackgroundTransparency = 1; descLbl.TextColor3 = C.txtFaint
+    descLbl.Font          = Enum.Font.Gotham; descLbl.TextSize = 9
+    descLbl.TextXAlignment = Enum.TextXAlignment.Left; descLbl.Text = cmd.desc
+
+    local runBtn          = Instance.new("TextButton", row)
+    runBtn.Size           = UDim2.fromOffset(28, 28); runBtn.Position = UDim2.new(1, -62, 0.5, -14)
+    runBtn.BackgroundColor3 = C.accent; runBtn.BorderSizePixel = 0; runBtn.AutoButtonColor = false
+    runBtn.TextColor3     = Color3.fromRGB(18, 9, 3); runBtn.Font = Enum.Font.GothamBold
+    runBtn.TextSize       = 11; runBtn.Text = "▶"
+    Instance.new("UICorner", runBtn).CornerRadius = UDim.new(0, 5)
+
+    local favBtn          = Instance.new("TextButton", row)
+    favBtn.Size           = UDim2.fromOffset(24, 28); favBtn.Position = UDim2.new(1, -30, 0.5, -14)
+    favBtn.BackgroundColor3 = Color3.fromRGB(30, 17, 7); favBtn.BorderSizePixel = 0; favBtn.AutoButtonColor = false
+    favBtn.Font           = Enum.Font.GothamBold; favBtn.TextSize = 13
+    favBtn.Text           = favorites[cmd.name] and "★" or "☆"
+    favBtn.TextColor3     = favorites[cmd.name] and Color3.fromRGB(255,210,80) or Color3.fromRGB(90,52,18)
+    Instance.new("UICorner", favBtn).CornerRadius = UDim.new(0, 5)
+
+    runBtn.MouseEnter:Connect(function()
+        TweenService:Create(runBtn, TweenInfo.new(0.1), { BackgroundColor3=Color3.fromRGB(230,120,45) }):Play()
+        TweenService:Create(rowStroke, TweenInfo.new(0.1), { Color=Color3.fromRGB(180,90,25), Transparency=0 }):Play()
+    end)
+    runBtn.MouseLeave:Connect(function()
+        TweenService:Create(runBtn, TweenInfo.new(0.1), { BackgroundColor3=C.accent }):Play()
+        TweenService:Create(rowStroke, TweenInfo.new(0.1), { Color=Color3.fromRGB(55,28,10), Transparency=0.4 }):Play()
+    end)
+    runBtn.MouseButton1Click:Connect(function()
+        playSound("rbxassetid://92876108656319"); pcall(cmd.run)
+        TweenService:Create(runBtn, TweenInfo.new(0.1), { BackgroundColor3=Color3.fromRGB(55,160,65) }):Play()
+        task.delay(0.35, function()
+            TweenService:Create(runBtn, TweenInfo.new(0.15), { BackgroundColor3=C.accent }):Play()
+        end)
+        notify("🌺 " .. cmd.name, "Executed", 1.8)
+    end)
+    favBtn.MouseButton1Click:Connect(function()
+        favorites[cmd.name] = not favorites[cmd.name]
+        favBtn.Text          = favorites[cmd.name] and "★" or "☆"
+        TweenService:Create(favBtn, TweenInfo.new(0.15), {
+            TextColor3 = favorites[cmd.name] and Color3.fromRGB(255,210,80) or Color3.fromRGB(90,52,18)
+        }):Play()
+        if onFavToggle then onFavToggle() end
+    end)
+    return row
+end
+
+local function buildFavoritesPanel(parent, favorites, onFavToggle, L)
+    for _, ch in ipairs(parent:GetChildren()) do
+        if ch:IsA("Frame") or ch:IsA("ScrollingFrame") or ch:IsA("TextLabel") then ch:Destroy() end
+    end
+    local hasFav = false
+    for _, cmd in ipairs(PANEL_COMMANDS) do if favorites[cmd.name] then hasFav = true; break end end
+    if not hasFav then
+        local el = Instance.new("TextLabel", parent)
+        el.Size  = UDim2.new(1,0,0,60); el.Position = UDim2.fromOffset(0,60)
+        el.BackgroundTransparency = 1; el.TextColor3 = C.txtFaint; el.Font = Enum.Font.Gotham
+        el.TextSize = 10; el.TextXAlignment = Enum.TextXAlignment.Center
+        el.TextWrapped = true; el.Text = L.emptyFavs
+        return
+    end
+    local FavContainer = Instance.new("Frame", parent)
+    FavContainer.Size  = UDim2.fromScale(1,1); FavContainer.BackgroundTransparency = 1
+    local FavScroll    = makeScroll(FavContainer)
+    local fi = 0
+    for _, cmd in ipairs(PANEL_COMMANDS) do
+        if favorites[cmd.name] then fi = fi + 1; makeCmdRow(FavScroll, cmd, fi, favorites, onFavToggle) end
+    end
+end
+
+local function buildSettingsPanel(parent, tabBtns, tabIcons, L)
+    local settScroll = Instance.new("ScrollingFrame", parent)
+    settScroll.Size  = UDim2.fromScale(1,1); settScroll.BackgroundTransparency = 1
+    settScroll.BorderSizePixel = 0; settScroll.ScrollBarThickness = 2
+    settScroll.ScrollBarImageColor3 = Color3.fromRGB(140,75,25)
+    settScroll.CanvasSize = UDim2.fromOffset(0,0)
+    local settList = Instance.new("UIListLayout", settScroll)
+    settList.Padding = UDim.new(0,4); settList.SortOrder = Enum.SortOrder.LayoutOrder
+    local settPad = Instance.new("UIPadding", settScroll)
+    settPad.PaddingLeft = UDim.new(0,10); settPad.PaddingRight = UDim.new(0,10)
+    settPad.PaddingTop  = UDim.new(0,8);  settPad.PaddingBottom = UDim.new(0,8)
+    settList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        settScroll.CanvasSize = UDim2.fromOffset(0, settList.AbsoluteContentSize.Y + 16)
+    end)
+    local function makeSettLabel(txt, lo)
+        local l = Instance.new("TextLabel", settScroll)
+        l.Size = UDim2.new(1,0,0,14); l.LayoutOrder = lo; l.BackgroundTransparency = 1
+        l.TextColor3 = Color3.fromRGB(175,105,45); l.Font = Enum.Font.GothamSemibold; l.TextSize = 10
+        l.TextXAlignment = Enum.TextXAlignment.Left; l.Text = txt; return l
+    end
+    local function makeSettDiv(lo)
+        local d = Instance.new("Frame", settScroll)
+        d.Size = UDim2.new(1,0,0,1); d.LayoutOrder = lo
+        d.BackgroundColor3 = Color3.fromRGB(50,26,10); d.BorderSizePixel = 0; return d
+    end
+    makeSettLabel("⚙️  " .. L.settLabel, 1); makeSettDiv(2)
+    local helpTxt = Instance.new("TextLabel", settScroll)
+    helpTxt.Size = UDim2.new(1,0,0,220); helpTxt.LayoutOrder = 3
+    helpTxt.BackgroundColor3 = Color3.fromRGB(14,8,3); helpTxt.BackgroundTransparency = 0.3
+    helpTxt.BorderSizePixel  = 0; helpTxt.TextColor3 = Color3.fromRGB(130,75,28)
+    helpTxt.Font = Enum.Font.Gotham; helpTxt.TextSize = 9
+    helpTxt.TextXAlignment = Enum.TextXAlignment.Left; helpTxt.TextYAlignment = Enum.TextYAlignment.Top
+    helpTxt.TextWrapped = true
+    helpTxt.Text =
+        "CLIENT COMMANDS:\n"..
+        "speed/jumppower/gravity/fly/unfly\n"..
+        "noclip/clip  noclipfly/unnoclipfly\n"..
+        "invis/vis  freeze/unfreeze  sit  jump\n"..
+        "rainbow/norainbow  rainbowsky/norainbowsky\n"..
+        "spin/nospin  orbit <user> [radius]  noordit\n"..
+        "fov <n>  zoom <n>  thirdperson <n>  resetcam\n"..
+        "size <n>  headless/noheadless  nametag\n"..
+        "god/nogod  animation <id>  music <id> [vol]\n"..
+        "time <h>  night/day/sunset  fullbright\n"..
+        "walkto <user>  unwalkto  copypos\n"..
+        "chatspam <msg> <times>  echat <msg>\n"..
+        "clone <user>  speedpad [boost]  nospeedpad\n\n"..
+        "SERVER/TARGET COMMANDS:\n"..
+        "kill/fling/explode <user/all/others>\n"..
+        "mute <user> [duration:<s>]  unmute <user>\n"..
+        "freezetarget/unfreezet <user>\n"..
+        "stun user:<n> duration:<s>\n"..
+        "forcesit/invistgt/vistgt <user>\n"..
+        "tspeed user:<n> speed:<n>\n"..
+        "deltools/respawntgt/netowner <user>\n"..
+        "fakechat user:<n> msg:<text>\n"..
+        "tp/bring/attach/hitbox/esp/tracers/aimbot\n"..
+        "tk/utk  antiafk/noantiafk\n"..
+        "rejoin/serverhop/serverinfo\n"..
+        "tpcoords x y z  infyield  console"
+    Instance.new("UICorner", helpTxt).CornerRadius = UDim.new(0,6)
+    local htp = Instance.new("UIPadding", helpTxt)
+    htp.PaddingLeft=UDim.new(0,6); htp.PaddingRight=UDim.new(0,6)
+    htp.PaddingTop=UDim.new(0,5);  htp.PaddingBottom=UDim.new(0,5)
+    makeSettDiv(4)
+    local lo       = 5
+    local langDefs3 = {
+        {code="EN", label="English",  flag="🇬🇧", native="English"},
+        {code="JP", label="日本語",   flag="🇯🇵", native="Nihongo"},
+        {code="TR", label="Türkçe",   flag="🇹🇷", native="Turkish"},
+    }
+    local langRowBtns = {}
+    local function updateLangSel()
+        for code, btn in pairs(langRowBtns) do
+            TweenService:Create(btn, TweenInfo.new(0.15), {
+                BackgroundColor3 = code == chosenLang and Color3.fromRGB(38,20,8) or Color3.fromRGB(22,12,5)
+            }):Play()
+        end
+    end
+    local tabNames2 = {"Commands","Favorites","Settings"}
+    for _, def in ipairs(langDefs3) do
+        local lbtn = Instance.new("TextButton", settScroll)
+        lbtn.Size  = UDim2.new(1,0,0,34); lbtn.LayoutOrder = lo; lo = lo + 1
+        lbtn.BackgroundColor3 = def.code == chosenLang and Color3.fromRGB(38,20,8) or Color3.fromRGB(22,12,5)
+        lbtn.BorderSizePixel  = 0; lbtn.AutoButtonColor = false; lbtn.Text = ""
+        Instance.new("UICorner", lbtn).CornerRadius = UDim.new(0,6)
+        local lbs = Instance.new("UIStroke",lbtn); lbs.Color=Color3.fromRGB(60,32,10); lbs.Thickness=1
+        local lf  = Instance.new("TextLabel",lbtn)
+        lf.Size=UDim2.fromOffset(28,34); lf.BackgroundTransparency=1; lf.Text=def.flag; lf.TextSize=14; lf.Font=Enum.Font.Gotham
+        local ln  = Instance.new("TextLabel",lbtn)
+        ln.Size=UDim2.new(1,-48,0,34); ln.Position=UDim2.fromOffset(30,0); ln.BackgroundTransparency=1
+        ln.TextColor3=Color3.fromRGB(220,175,120); ln.Font=Enum.Font.GothamBold; ln.TextSize=11
+        ln.TextXAlignment=Enum.TextXAlignment.Left; ln.Text=def.label.."  ("..def.native..")"
+        langRowBtns[def.code] = lbtn
+        lbtn.MouseButton1Click:Connect(function()
+            if chosenLang == def.code then return end
+            playSound("rbxassetid://92876108656319")
+            chosenLang = def.code
+            local NL   = LANGS[def.code]
+            for ii, tname in ipairs(tabNames2) do
+                if tabBtns[tname] then
+                    tabBtns[tname].Text = tabIcons[ii] .. " " .. NL.tabs[tname]
+                end
+            end
+            updateLangSel()
+            notify("🌐 " .. NL.langSec, NL.notify, 2.5)
+        end)
+    end
+    makeSettDiv(lo); lo = lo + 1
+    local vl = makeSettLabel("🌺  NihonAdmin  v2.5  —  Bloom Edition", lo); vl.TextColor3=Color3.fromRGB(130,78,30); lo=lo+1
+    local dl = makeSettLabel("👑  by MrsDuck  ·  Full Update", lo); dl.TextColor3=Color3.fromRGB(100,58,20); lo=lo+1
+    makeSettLabel("🔑  Key: Nihon  (or nihon / NIHON)", lo)
+end
+
+local function buildCommandsPanel(parent, favorites, onFavRefresh)
+    local runBarWrap = Instance.new("Frame", parent)
+    runBarWrap.Size             = UDim2.new(1,-16,0,28); runBarWrap.Position = UDim2.fromOffset(8,6)
+    runBarWrap.BackgroundColor3 = Color3.fromRGB(10,6,2); runBarWrap.BorderSizePixel=0
+    Instance.new("UICorner",runBarWrap).CornerRadius = UDim.new(0,6)
+    local rbStroke              = Instance.new("UIStroke",runBarWrap)
+    rbStroke.Color              = C.accent; rbStroke.Thickness=1; rbStroke.Transparency=0.3
+    local rbIcon                = Instance.new("TextLabel",runBarWrap)
+    rbIcon.Size                 = UDim2.fromOffset(26,28); rbIcon.BackgroundTransparency=1
+    rbIcon.Text                 = "▶"; rbIcon.TextSize=10; rbIcon.TextColor3=C.accent; rbIcon.Font=Enum.Font.GothamBold
+
+    local RunBox = Instance.new("TextBox",runBarWrap)
+    RunBox.Size               = UDim2.new(1,-30,1,0); RunBox.Position = UDim2.fromOffset(24,0)
+    RunBox.BackgroundTransparency = 1; RunBox.BorderSizePixel=0
+    RunBox.TextColor3         = Color3.fromRGB(230,185,130); RunBox.PlaceholderColor3 = Color3.fromRGB(80,46,16)
+    RunBox.Font               = Enum.Font.Gotham; RunBox.TextSize=11
+    RunBox.PlaceholderText    = "Run Bar — speed, fly, tp, mute..."; RunBox.Text=""
+    RunBox.ClearTextOnFocus   = false
+    RunBox:GetPropertyChangedSignal("Text"):Connect(function()
+        local text = RunBox.Text:match("^%s*(%S+)%s*$")
+        if text then
+            local schema = ARG_POPUP_SCHEMAS[text:lower()]
+            if schema then
+                showArgPopup(text:lower(), schema, function(vals)
+                    local cmdStr = text:lower()
+                    for _, f in ipairs(schema.fields) do
+                        if vals[f.key] and vals[f.key] ~= f.placeholder then
+                            cmdStr = cmdStr .. " " .. f.key .. ":" .. vals[f.key]
+                        end
+                    end
+                    pcall(runCommand, cmdStr); RunBox.Text = ""
+                end)
+            end
+        end
+    end)
+    RunBox.Focused:Connect(function()
+        TweenService:Create(rbStroke, TweenInfo.new(0.14), { Color=C.accentHi, Transparency=0 }):Play()
+    end)
+    RunBox.FocusLost:Connect(function(enter)
+        TweenService:Create(rbStroke, TweenInfo.new(0.14), { Color=C.accent, Transparency=0.3 }):Play()
+        if enter then
+            local cmd = RunBox.Text:match("^%s*(.-)%s*$")
+            if cmd ~= "" then pcall(runCommand, cmd); RunBox.Text = "" end
+        end
+    end)
+    UserInputService.InputBegan:Connect(function(inp, gpe)
+        if gpe then return end
+        if inp.KeyCode == Enum.KeyCode.Return and RunBox:IsFocused() then
+            local cmd = RunBox.Text:match("^%s*(.-)%s*$")
+            if cmd ~= "" then pcall(runCommand, cmd); RunBox.Text = "" end
+        end
+    end)
+
+    local searchWrap = Instance.new("Frame", parent)
+    searchWrap.Size             = UDim2.new(1,-16,0,22); searchWrap.Position = UDim2.fromOffset(8,38)
+    searchWrap.BackgroundColor3 = Color3.fromRGB(14,8,3); searchWrap.BorderSizePixel=0
+    Instance.new("UICorner",searchWrap).CornerRadius = UDim.new(0,5)
+    local searchStroke          = Instance.new("UIStroke",searchWrap)
+    searchStroke.Color          = Color3.fromRGB(60,32,12); searchStroke.Thickness=1; searchStroke.Transparency=0.3
+    local searchIcon            = Instance.new("TextLabel",searchWrap)
+    searchIcon.Size             = UDim2.fromOffset(20,22); searchIcon.BackgroundTransparency=1
+    searchIcon.Text             = "🔍"; searchIcon.TextSize=9; searchIcon.Font=Enum.Font.Gotham
+    local SearchBox             = Instance.new("TextBox",searchWrap)
+    SearchBox.Size              = UDim2.new(1,-24,1,0); SearchBox.Position = UDim2.fromOffset(20,0)
+    SearchBox.BackgroundTransparency = 1; SearchBox.BorderSizePixel=0
+    SearchBox.TextColor3        = Color3.fromRGB(230,185,130); SearchBox.PlaceholderColor3=Color3.fromRGB(80,46,16)
+    SearchBox.Font              = Enum.Font.Gotham; SearchBox.TextSize=10
+    SearchBox.PlaceholderText   = "Filter commands..."; SearchBox.Text=""; SearchBox.ClearTextOnFocus=false
+
+    local CmdsContainer = Instance.new("Frame", parent)
+    CmdsContainer.Size              = UDim2.new(1,0,1,-64); CmdsContainer.Position = UDim2.fromOffset(0,64)
+    CmdsContainer.BackgroundTransparency = 1; CmdsContainer.BorderSizePixel=0
+    local CmdsScroll = makeScroll(CmdsContainer)
+    local cmdRows    = {}
+    for i, cmd in ipairs(PANEL_COMMANDS) do
+        local r = makeCmdRow(CmdsScroll, cmd, i, favorites, onFavRefresh)
+        cmdRows[cmd.name] = r
+    end
+    SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        local q = SearchBox.Text:lower()
+        for _, cmd in ipairs(PANEL_COMMANDS) do
+            local r = cmdRows[cmd.name]
+            if r then
+                r.Visible = q == ""
+                    or cmd.name:lower():find(q,1,true) ~= nil
+                    or cmd.desc:lower():find(q,1,true) ~= nil
+            end
+        end
+    end)
+end
+
+local function setupDragging(Main, Header)
+    local dragging, dragStart, startPos = false, nil, nil
+    Header.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true; dragStart = inp.Position; startPos = Main.Position
+        end
+    end)
+    Header.InputEnded:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+    end)
+    UserInputService.InputChanged:Connect(function(inp)
+        if dragging and inp.UserInputType == Enum.UserInputType.MouseMovement then
+            local d = inp.Position - dragStart
+            Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset+d.X, startPos.Y.Scale, startPos.Y.Offset+d.Y)
+        end
+    end)
+end
+
+local function setupWindowButtons(Main, Header, PANEL_W, PANEL_H, HEADER_H)
+    local function mkWinBtn(txt, xOff, txtColor)
+        local b = Instance.new("TextButton", Header)
+        b.Size             = UDim2.fromOffset(18,18); b.Position = UDim2.new(1,xOff,0.5,-9)
+        b.BackgroundColor3 = Color3.fromRGB(38,22,10); b.BorderSizePixel=0; b.AutoButtonColor=false
+        b.TextColor3       = txtColor; b.Font=Enum.Font.GothamBold; b.TextSize=12; b.Text=txt
+        Instance.new("UICorner",b).CornerRadius = UDim.new(0,4)
+        b.MouseEnter:Connect(function() TweenService:Create(b,TweenInfo.new(0.1),{BackgroundColor3=Color3.fromRGB(52,28,12)}):Play() end)
+        b.MouseLeave:Connect(function() TweenService:Create(b,TweenInfo.new(0.1),{BackgroundColor3=Color3.fromRGB(38,22,10)}):Play() end)
+        return b
+    end
+    local minimized = false
+    local MinBtn    = mkWinBtn("−", -44, C.txtSub)
+    local CloseBtn  = mkWinBtn("✕", -20, Color3.fromRGB(200,80,60))
+    MinBtn.MouseButton1Click:Connect(function()
+        minimized = not minimized
+        TweenService:Create(Main, TweenInfo.new(0.22,Enum.EasingStyle.Quad),
+            { Size = UDim2.fromOffset(PANEL_W, minimized and HEADER_H or PANEL_H) }):Play()
+    end)
+    CloseBtn.MouseButton1Click:Connect(function()
+        TweenService:Create(Main,
+            TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In),
+            { Size=UDim2.fromOffset(PANEL_W,0), Position=Main.Position+UDim2.fromOffset(0,PANEL_H/2) }
+        ):Play()
+        task.delay(0.28, function() pcall(function() Main.Parent:Destroy(); closeArgPopup() end) end)
+    end)
+end
+
+local function setupTabs(ContentArea, tabNames, tabIcons, L, panels, PANEL_W, TABS_H)
+    local TabBar = Instance.new("Frame", ContentArea)
+    TabBar.Size             = UDim2.new(1,0,0,TABS_H); TabBar.BackgroundColor3 = Color3.fromRGB(22,12,5); TabBar.BorderSizePixel=0
+    local tabDivB = Instance.new("Frame",TabBar)
+    tabDivB.Size = UDim2.new(1,0,0,1); tabDivB.Position = UDim2.new(0,0,1,-1)
+    tabDivB.BackgroundColor3 = Color3.fromRGB(50,27,10); tabDivB.BorderSizePixel=0
+
+    local tabBtns          = {}
+    local activeIndicators = {}
+    local tabW             = math.floor(PANEL_W / #tabNames)
+
+    for i, tname in ipairs(tabNames) do
+        local tb = Instance.new("TextButton",TabBar)
+        tb.Size              = UDim2.fromOffset(tabW, TABS_H); tb.Position = UDim2.fromOffset((i-1)*tabW, 0)
+        tb.BackgroundTransparency = 1; tb.BorderSizePixel=0; tb.AutoButtonColor=false
+        tb.TextColor3        = C.txtFaint; tb.Font=Enum.Font.GothamSemibold; tb.TextSize=10
+        tb.Text              = tabIcons[i] .. " " .. L.tabs[tname]; tabBtns[tname] = tb
+        local ind            = Instance.new("Frame",tb)
+        ind.Size             = UDim2.new(0,0,0,2); ind.Position = UDim2.new(0.5,0,1,-2)
+        ind.AnchorPoint      = Vector2.new(0.5,0); ind.BackgroundColor3 = C.accentHi; ind.BorderSizePixel=0
+        Instance.new("UICorner",ind).CornerRadius = UDim.new(0,1); activeIndicators[tname] = ind
+        tb.MouseEnter:Connect(function()
+            if tb.TextColor3 == C.txtFaint then TweenService:Create(tb,TweenInfo.new(0.1),{TextColor3=Color3.fromRGB(155,90,35)}):Play() end
+        end)
+        tb.MouseLeave:Connect(function()
+            if tb.TextColor3 ~= Color3.fromRGB(255,215,160) then TweenService:Create(tb,TweenInfo.new(0.1),{TextColor3=C.txtFaint}):Play() end
+        end)
+    end
+
+    local PanelArea = Instance.new("Frame",ContentArea)
+    PanelArea.Position = UDim2.fromOffset(0,TABS_H); PanelArea.BackgroundTransparency=1
+    PanelArea.Size = UDim2.new(1,0,1,-TABS_H); PanelArea.BorderSizePixel=0; PanelArea.ClipsDescendants=true
+
+    local panelFrames = {}
+    for _, tname in ipairs(tabNames) do
+        local p = Instance.new("Frame",PanelArea)
+        p.Size = UDim2.fromScale(1,1); p.BackgroundTransparency=1; p.Visible=false; p.BorderSizePixel=0
+        panelFrames[tname] = p; panels[tname] = p
+    end
+
+    local currentTab = nil
+    local function switchTab(name, skipAnim)
+        if currentTab == name and not skipAnim then return end
+        local prev = currentTab; currentTab = name
+        for tname, tb in pairs(tabBtns) do
+            if tname == name then
+                TweenService:Create(tb,TweenInfo.new(0.15),{TextColor3=Color3.fromRGB(255,215,160)}):Play()
+                TweenService:Create(activeIndicators[tname],TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=UDim2.new(0.65,0,0,2)}):Play()
+            else
+                TweenService:Create(tb,TweenInfo.new(0.15),{TextColor3=C.txtFaint}):Play()
+                TweenService:Create(activeIndicators[tname],TweenInfo.new(0.14),{Size=UDim2.new(0,0,0,2)}):Play()
+            end
+        end
+        if prev and panels[prev] then
+            local pOld = panels[prev]
+            if not skipAnim then
+                TweenService:Create(pOld,TweenInfo.new(0.13,Enum.EasingStyle.Quad,Enum.EasingDirection.In),{Position=UDim2.fromOffset(-12,0)}):Play()
+                task.wait(0.12); pOld.Visible=false; pOld.Position=UDim2.fromScale(0,0)
+            else pOld.Visible=false end
+        end
+        local pNew = panels[name]
+        if pNew then
+            if not skipAnim then
+                pNew.Position=UDim2.fromOffset(12,0); pNew.Visible=true
+                TweenService:Create(pNew,TweenInfo.new(0.16,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Position=UDim2.fromOffset(0,0)}):Play()
+            else pNew.Position=UDim2.fromOffset(0,0); pNew.Visible=true end
+        end
+    end
+
+    for _, tname in ipairs(tabNames) do
+        tabBtns[tname].MouseButton1Click:Connect(function() switchTab(tname) end)
+    end
+    return tabBtns, switchTab, panelFrames
+end
+
+-- ════════════════════════════════════════════════════════════════════════════
+--   BUILD ADMIN GUI
+-- ════════════════════════════════════════════════════════════════════════════
+local function buildAdminGui()
+    local L          = LANGS[chosenLang]
+    local AdminGui   = Instance.new("ScreenGui")
+    AdminGui.Name           = "NihonAdminPanel"
+    AdminGui.IgnoreGuiInset = true
+    AdminGui.ResetOnSpawn   = false
+    AdminGui.DisplayOrder   = 998
+    AdminGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    AdminGui.Parent         = guiParent
+
+    local favorites  = {}
+    local PANEL_W    = 280; local PANEL_H = 420; local HEADER_H = 44; local TABS_H = 34
+
+    local Main = Instance.new("Frame")
+    Main.Size           = UDim2.fromOffset(PANEL_W, PANEL_H)
+    Main.Position       = UDim2.new(0, -PANEL_W-10, 0.5, -(PANEL_H/2))
+    Main.BackgroundColor3 = Color3.fromRGB(18,11,5)
+    Main.BorderSizePixel = 0
+    Main.Parent         = AdminGui
+    Instance.new("UICorner",Main).CornerRadius = UDim.new(0,10)
+    Instance.new("UIStroke",Main).Color        = C.stroke
+    TweenService:Create(Main,
+        TweenInfo.new(0.38, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+        { Position = UDim2.new(0, 20, 0.5, -(PANEL_H/2)) }
+    ):Play()
+
+    local Header = Instance.new("Frame",Main)
+    Header.Size             = UDim2.new(1,0,0,HEADER_H); Header.BackgroundColor3=C.panel; Header.BorderSizePixel=0
+    Instance.new("UICorner",Header).CornerRadius = UDim.new(0,10)
+    local hFix = Instance.new("Frame",Header)
+    hFix.Size = UDim2.new(1,0,0,12); hFix.Position = UDim2.fromOffset(0,HEADER_H-12); hFix.BackgroundColor3=C.panel; hFix.BorderSizePixel=0
+    local hLine = Instance.new("Frame",Header)
+    hLine.Size = UDim2.new(1,0,0,1); hLine.Position = UDim2.new(0,0,1,-1); hLine.BorderSizePixel=0; hLine.BackgroundColor3=Color3.fromRGB(255,140,55)
+    local hLineGrad = Instance.new("UIGradient",hLine)
+    hLineGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,Color3.fromRGB(60,28,6)),
+        ColorSequenceKeypoint.new(0.5,Color3.fromRGB(255,185,90)),
+        ColorSequenceKeypoint.new(1,Color3.fromRGB(60,28,6)),
+    })
+    local hLogo = Instance.new("TextLabel",Header)
+    hLogo.Size=UDim2.fromOffset(28,HEADER_H); hLogo.Position=UDim2.fromOffset(10,0); hLogo.BackgroundTransparency=1
+    hLogo.Text="🌺"; hLogo.TextSize=15; hLogo.Font=Enum.Font.Gotham
+    local hTitle = Instance.new("TextLabel",Header)
+    hTitle.Size=UDim2.new(1,-80,0,HEADER_H); hTitle.Position=UDim2.fromOffset(34,0); hTitle.BackgroundTransparency=1
+    hTitle.TextColor3=Color3.fromRGB(255,215,160); hTitle.Font=Enum.Font.GothamBold; hTitle.TextSize=13
+    hTitle.TextXAlignment=Enum.TextXAlignment.Left; hTitle.Text="NihonAdmin v2.5"
+
+    local ContentArea = Instance.new("Frame",Main)
+    ContentArea.Position=UDim2.fromOffset(0,HEADER_H); ContentArea.BackgroundTransparency=1
+    ContentArea.Size=UDim2.new(1,0,1,-HEADER_H); ContentArea.BorderSizePixel=0; ContentArea.ClipsDescendants=true
+
+    setupWindowButtons(Main, Header, PANEL_W, PANEL_H, HEADER_H)
+
+    local tabNames = {"Commands","Favorites","Settings"}
+    local tabIcons = {"🌺","⭐","⚙️"}
+    local panels   = {}
+    local tabBtns, switchTab = setupTabs(ContentArea, tabNames, tabIcons, L, panels, PANEL_W, TABS_H)
+
+    local function refreshFavsPanel()
+        if panels.Favorites then
+            buildFavoritesPanel(panels.Favorites, favorites, refreshFavsPanel, L)
+        end
+    end
+
+    buildCommandsPanel(panels.Commands, favorites, refreshFavsPanel)
+    buildFavoritesPanel(panels.Favorites, favorites, refreshFavsPanel, L)
+    buildSettingsPanel(panels.Settings, tabBtns, tabIcons, L)
+    setupDragging(Main, Header)
+    switchTab("Commands", true)
+
+    local guiVisible     = true
+    local minimizedState = false
+    UserInputService.InputBegan:Connect(function(inp, gpe)
+        if gpe then return end
+        if inp.KeyCode == Enum.KeyCode.RightShift then
+            guiVisible = not guiVisible
+            if guiVisible then
+                Main.Visible = true
+                TweenService:Create(Main,
+                    TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+                    { Size = UDim2.fromOffset(PANEL_W, minimizedState and HEADER_H or PANEL_H) }
+                ):Play()
+            else
+                TweenService:Create(Main,
+                    TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+                    { Size = UDim2.fromOffset(PANEL_W, 0) }
+                ):Play()
+                task.delay(0.2, function() if not guiVisible then Main.Visible = false end end)
+            end
+        end
+    end)
+
+    notify("🌺 NihonAdmin", "v2.5 loaded! Fly/Noclip/Mute ready. RightShift=toggle.", 4)
+end
+
+-- ════════════════════════════════════════════════════════════════════════════
+--   FLOW LOGIC
+-- ════════════════════════════════════════════════════════════════════════════
+onFlowComplete = function()
+    local steps_ = LANGS[chosenLang].steps
+    for i, s in ipairs(stepLabels) do
+        stepLabels[i].lbl.Text = s.icon .. "  " .. steps_[i].line
+    end
+
+    task.spawn(function()
+        for i, step in ipairs(steps_) do
+            loadStatusLbl.Text = step.line
+            barPct.Text        = math.floor((i / #steps_) * 100) .. "%"
+            for j, s in ipairs(stepLabels) do
+                if j < i then
+                    TweenService:Create(s.lbl, TweenInfo.new(0.18), { TextColor3=Color3.fromRGB(130,80,30) }):Play()
+                    TweenService:Create(s.dot, TweenInfo.new(0.18), { BackgroundColor3=Color3.fromRGB(130,75,25) }):Play()
+                elseif j == i then
+                    TweenService:Create(s.lbl, TweenInfo.new(0.18), { TextColor3=Color3.fromRGB(255,210,150) }):Play()
+                    TweenService:Create(s.dot, TweenInfo.new(0.18), { BackgroundColor3=Color3.fromRGB(220,130,50) }):Play()
+                    TweenService:Create(s.row, TweenInfo.new(0.18), { BackgroundTransparency=0.45 }):Play()
+                end
+            end
+            TweenService:Create(BarFill,
+                TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                { Size = UDim2.new(i / #steps_, 0, 1, 0) }
+            ):Play()
+            task.wait(0.62)
+        end
+        barPct.Text = "100%"; task.wait(0.28)
+
+        for _, child in ipairs(Card:GetDescendants()) do
+            if child:IsA("TextLabel") or child:IsA("TextButton") or child:IsA("TextBox") then
+                TweenService:Create(child, TweenInfo.new(0.28), { TextTransparency=1 }):Play()
+            end
+            if child:IsA("Frame") or child:IsA("ScrollingFrame") then
+                pcall(function() TweenService:Create(child,TweenInfo.new(0.28),{BackgroundTransparency=1}):Play() end)
+            end
+            if child:IsA("UIStroke") then
+                TweenService:Create(child, TweenInfo.new(0.28), { Transparency=1 }):Play()
+            end
+        end
+        task.wait(0.22)
+        TweenService:Create(Card,
+            TweenInfo.new(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.In),
+            { Size=UDim2.fromOffset(460,0), Position=UDim2.new(0.5,-230,0.5,180), BackgroundTransparency=1 }
+        ):Play()
+        task.wait(0.35)
+        TweenService:Create(Bg, TweenInfo.new(0.38,Enum.EasingStyle.Quad), { BackgroundTransparency=1 }):Play()
+        TweenService:Create(ambientGlow, TweenInfo.new(0.38), { BackgroundTransparency=1 }):Play()
+        task.wait(0.4)
+        petalConn:Disconnect()
+        for _, p in ipairs(petals) do pcall(function() p.obj:Remove() end) end
+        petals = {}
+        LoadGui:Destroy()
+        task.wait(0.1)
+        local ok, err = pcall(buildAdminGui)
+        if not ok then warn("[NihonAdmin] buildAdminGui error: " .. tostring(err)) end
+    end)
+end
+
+-- ════════════════════════════════════════════════════════════════════════════
+--   LOADER FLOW WIRING
+-- ════════════════════════════════════════════════════════════════════════════
+ReadBtn.MouseButton1Click:Connect(function()
+    playSound("rbxassetid://139009780109934")
+    TweenService:Create(ReadBtn, TweenInfo.new(0.12), { BackgroundColor3=Color3.fromRGB(55,160,65) }):Play()
+    task.delay(0.2, function() slideOut(FeatPanel, LangPanel) end)
+end)
+
+for code, btn in pairs(langBtns) do
+    btn.MouseButton1Click:Connect(function()
+        playSound("rbxassetid://139009780109934")
+        chosenLang = code
+        task.delay(0.08, function()
+            if isOwner then slideOut(LangPanel, OwnerPanel) else slideOut(LangPanel, KeyPanel) end
+        end)
+    end)
+end
+
+if isOwner then
+    YesBtn.MouseButton1Click:Connect(function()
+        TweenService:Create(YesBtn, TweenInfo.new(0.12), { BackgroundColor3=Color3.fromRGB(55,160,65) }):Play()
+        task.delay(0.22, function() slideOut(OwnerPanel, KeyPanel) end)
+        task.delay(0.4, onFlowComplete)
+    end)
+    NoBtn.MouseButton1Click:Connect(function()
+        task.delay(0.22, function() slideOut(OwnerPanel, LoadPanel) end)
+        task.delay(0.3, onFlowComplete)
+    end)
+end
