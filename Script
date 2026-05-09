@@ -1,7 +1,24 @@
+-- ╔══════════════════════════════════════════════════════════════════════╗
+-- ║  NihonAdmin v2.5 — Universal Loader (Fixes getgenv/gethui/cloneref) ║
+-- ╚══════════════════════════════════════════════════════════════════════╝
+
+-- STEP 1: Inject missing executor functions so ALL modules work
+if typeof(getgenv) ~= "function" then
+    getgenv = function() return _G end
+end
+if typeof(gethui) ~= "function" then
+    gethui = function() return game:GetService("CoreGui") end
+end
+if typeof(cloneref) ~= "function" then
+    cloneref = function(obj) return obj end
+end
+
+-- STEP 2: Your key
 local k = "NihonLoader_Key_Real"
 getgenv()._nl = k
 
-local base = "https://github.com/NoSkillStudios/Zen2/tree/main"
+-- STEP 3: Fixed raw GitHub URL
+local base = "https://raw.githubusercontent.com/NoSkillStudios/Zen2/refs/heads/main/"
 
 local modules = { "NotificationSystem", "Commands", "Gui" }
 
