@@ -15,17 +15,13 @@ local NOTIF_RIGHT_MARGIN = 16
 local NOTIF_TOP_START    = 20
 local MAX_NOTIFS_VISIBLE = 8
 
--- SAFE getgenv fallback
-local function safeGetGenv()
-    if typeof(getgenv) == "function" then
-        return getgenv()
-    end
-    return _G -- fallback to _G if getgenv isn't available
-end
+-- ROBUST: Use _G instead of getgenv (works in Studio, executors, and LocalScripts)
+local GLOBAL = _G
 
 local function getGuiParent()
-    local genv = safeGetGenv()
-    if genv.NihonGuiParent then return genv.NihonGuiParent end
+    if GLOBAL.NihonGuiParent then
+        return GLOBAL.NihonGuiParent
+    end
     local lp = game:GetService("Players").LocalPlayer
     local ok, cg = pcall(function() return game:GetService("CoreGui") end)
     return (ok and cg) or lp:WaitForChild("PlayerGui")
@@ -201,6 +197,4 @@ local function notify(title, body, dur)
     end)
 end
 
--- SAFE global assignment
-local genv = safeGetGenv()
-genv.NihonNotify = notify
+GLOBAL.NihonNotify = notify
