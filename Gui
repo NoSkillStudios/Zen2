@@ -1367,7 +1367,7 @@ end
 onFlowComplete = function()
     local steps_ = LANGS[chosenLang].steps
     for i, s in ipairs(stepLabels) do
-        stepLabels[i].lbl.Text = s.icon .. "  " .. steps_[i].line
+        stepLabels[i].lbl.Text = steps_[i].icon .. "  " .. steps_[i].line
     end
 
     task.spawn(function()
