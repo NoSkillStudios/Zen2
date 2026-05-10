@@ -575,16 +575,18 @@ local function startEsp(targets, color)
 			local skip = true
 			for _, t2 in ipairs(targets) do if t2 == p then skip = false; break end end
 			if not skip and p.Character and getHRP() then
-				local hrp = p.Character:FindFirstChild("HumanoidRootPart"); if not hrp then continue end
-				local myHRP = getHRP()
-				local pos, on = workspace.CurrentCamera:WorldToViewportPoint(hrp.Position)
-				if on then
-					local lbl = Drawing.new("Text")
-					lbl.Text = p.DisplayName.." ["..math.floor((hrp.Position-myHRP.Position).Magnitude).."]"
-					lbl.Size = 13; lbl.Color = State.espColor; lbl.Outline = true
-					lbl.Position = Vector2.new(pos.X, pos.Y-14); lbl.Visible = true
-					espObjects[p] = espObjects[p] or {}
-					table.insert(espObjects[p], lbl)
+				local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+				if hrp then
+					local myHRP = getHRP()
+					local pos, on = workspace.CurrentCamera:WorldToViewportPoint(hrp.Position)
+					if on then
+						local lbl = Drawing.new("Text")
+						lbl.Text = p.DisplayName.." ["..math.floor((hrp.Position-myHRP.Position).Magnitude).."]"
+						lbl.Size = 13; lbl.Color = State.espColor; lbl.Outline = true
+						lbl.Position = Vector2.new(pos.X, pos.Y-14); lbl.Visible = true
+						espObjects[p] = espObjects[p] or {}
+						table.insert(espObjects[p], lbl)
+					end
 				end
 			end
 		end
@@ -613,11 +615,13 @@ local function startTracers(targets, color)
 		if not State.tracersActive then tracerConn:Disconnect(); tracerConn = nil; for _, l in pairs(lines) do pcall(function() l:Remove() end) end; return end
 		local cam = workspace.CurrentCamera; local vp = cam.ViewportSize
 		for _, p in ipairs(targets) do
-			local l = lines[p]; if not l then continue end
-			if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and getHRP() then
-				local sp, on = cam:WorldToViewportPoint(p.Character.HumanoidRootPart.Position)
-				if on then l.From = Vector2.new(vp.X/2, vp.Y); l.To = Vector2.new(sp.X, sp.Y); l.Visible = true else l.Visible = false end
-			else l.Visible = false end
+			local l = lines[p]
+			if l then
+				if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and getHRP() then
+					local sp, on = cam:WorldToViewportPoint(p.Character.HumanoidRootPart.Position)
+					if on then l.From = Vector2.new(vp.X/2, vp.Y); l.To = Vector2.new(sp.X, sp.Y); l.Visible = true else l.Visible = false end
+				else l.Visible = false end
+			end
 		end
 	end)
 	notify("📐 Tracers", "Enabled for "..#targets.." player(s)", 2)
@@ -636,11 +640,13 @@ local function applyHitbox(targets, size, transp)
 	State.hitboxSize = size; State.hitboxTransp = transp
 	for _, p in ipairs(targets) do
 		if p.Character then
-			local hrp = p.Character:FindFirstChild("HumanoidRootPart"); if not hrp then continue end
-			local hb = Instance.new("Part"); hb.Name = "NihonHitbox"; hb.Size = Vector3.new(size,size,size)
-			hb.Transparency = transp; hb.Anchored = false; hb.CanCollide = false; hb.BrickColor = BrickColor.new("Bright red"); hb.Parent = p.Character
-			local w = Instance.new("WeldConstraint"); w.Part0 = hrp; w.Part1 = hb; w.Parent = hb
-			table.insert(hitboxParts, hb)
+			local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				local hb = Instance.new("Part"); hb.Name = "NihonHitbox"; hb.Size = Vector3.new(size,size,size)
+				hb.Transparency = transp; hb.Anchored = false; hb.CanCollide = false; hb.BrickColor = BrickColor.new("Bright red"); hb.Parent = p.Character
+				local w = Instance.new("WeldConstraint"); w.Part0 = hrp; w.Part1 = hb; w.Parent = hb
+				table.insert(hitboxParts, hb)
+			end
 		end
 	end
 	notify("📦 Hitbox", "Applied to "..#targets.." player(s)  Size:"..size, 2)
@@ -656,11 +662,13 @@ local function applyNpcHitbox(size)
 	local count = 0
 	for _, obj in ipairs(workspace:GetDescendants()) do
 		if obj:IsA("Humanoid") and not Players:GetPlayerFromCharacter(obj.Parent) then
-			local hrp = obj.Parent and obj.Parent:FindFirstChild("HumanoidRootPart"); if not hrp then continue end
-			local hb = Instance.new("Part"); hb.Name = "NihonNpcHitbox"; hb.Size = Vector3.new(size,size,size)
-			hb.Transparency = 0.6; hb.Anchored = false; hb.CanCollide = false; hb.BrickColor = BrickColor.new("Bright blue"); hb.Parent = obj.Parent
-			local w = Instance.new("WeldConstraint"); w.Part0 = hrp; w.Part1 = hb; w.Parent = hb
-			table.insert(hitboxParts, hb); count += 1
+			local hrp = obj.Parent and obj.Parent:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				local hb = Instance.new("Part"); hb.Name = "NihonNpcHitbox"; hb.Size = Vector3.new(size,size,size)
+				hb.Transparency = 0.6; hb.Anchored = false; hb.CanCollide = false; hb.BrickColor = BrickColor.new("Bright blue"); hb.Parent = obj.Parent
+				local w = Instance.new("WeldConstraint"); w.Part0 = hrp; w.Part1 = hb; w.Parent = hb
+				table.insert(hitboxParts, hb); count = count + 1
+			end
 		end
 	end
 	notify("📦 NPC Hitbox", "Applied to "..count.." NPCs", 2)
@@ -676,11 +684,13 @@ local function startAimbot(targets)
 		local cam = workspace.CurrentCamera; local best, bestDist = nil, math.huge
 		for _, p in ipairs(targets) do
 			if p.Character and p ~= lp then
-				local head = p.Character:FindFirstChild("Head"); if not head then continue end
-				local sp, on = cam:WorldToViewportPoint(head.Position)
-				if on then
-					local d = (Vector2.new(sp.X,sp.Y) - cam.ViewportSize/2).Magnitude
-					if d < bestDist then bestDist = d; best = head.Position end
+				local head = p.Character:FindFirstChild("Head")
+				if head then
+					local sp, on = cam:WorldToViewportPoint(head.Position)
+					if on then
+						local d = (Vector2.new(sp.X,sp.Y) - cam.ViewportSize/2).Magnitude
+						if d < bestDist then bestDist = d; best = head.Position end
+					end
 				end
 			end
 		end
@@ -1519,8 +1529,10 @@ local function bringNpcs()
 	local count = 0
 	for _, obj in ipairs(workspace:GetDescendants()) do
 		if obj:IsA("Humanoid") and not Players:GetPlayerFromCharacter(obj.Parent) then
-			local hrp = obj.Parent and obj.Parent:FindFirstChild("HumanoidRootPart"); if not hrp then continue end
-			pcall(function() hrp.CFrame = myHRP.CFrame * CFrame.new(math.random(-5,5), 0, math.random(-5,5)); count = count + 1 end)
+			local hrp = obj.Parent and obj.Parent:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				pcall(function() hrp.CFrame = myHRP.CFrame * CFrame.new(math.random(-5,5), 0, math.random(-5,5)); count = count + 1 end)
+			end
 		end
 	end
 	notify("🧲 BringNPCs", "Brought "..count.." NPCs", 2)
@@ -1551,9 +1563,11 @@ local function goToNpcs()
 	local nearest, nearDist = nil, math.huge
 	for _, obj in ipairs(workspace:GetDescendants()) do
 		if obj:IsA("Humanoid") and not Players:GetPlayerFromCharacter(obj.Parent) then
-			local hrp = obj.Parent and obj.Parent:FindFirstChild("HumanoidRootPart"); if not hrp then continue end
-			local d = (hrp.Position - myHRP.Position).Magnitude
-			if d < nearDist then nearDist = d; nearest = hrp end
+			local hrp = obj.Parent and obj.Parent:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				local d = (hrp.Position - myHRP.Position).Magnitude
+				if d < nearDist then nearDist = d; nearest = hrp end
+			end
 		end
 	end
 	if nearest then pcall(function() myHRP.CFrame = nearest.CFrame * CFrame.new(0,0,3) end); notify("🎯 GoToNPC", "Teleported to nearest NPC", 2)
