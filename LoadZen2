@@ -1,0 +1,32 @@
+--[[
+    LoadZen2.lua
+    Single-line loader for the Zen2 GUI template, hosted on GitHub.
+
+    Usage (paste this into an executor, or require it as a LocalScript):
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/NoSkillStudios/Zen2/main/LoadZen2"))()
+
+    What it does:
+        1. Fetches Gui.lua source from GitHub and loads it as a chunk.
+        2. Stores the returned Gui table in _G.Zen2_Gui so MainLoader can see it
+           (GitHub-hosted files aren't real ModuleScript Instances, so
+           MainLoader can't require() them - this global hand-off replaces that).
+        3. Fetches MainLoader.lua source from GitHub and loads it as a chunk.
+        4. Returns the MainLoader table to the caller.
+]]
+
+local BASE_URL = "https://raw.githubusercontent.com/NoSkillStudios/Zen2/main/"
+
+local function fetchAndLoad(fileName)
+    local source = game:HttpGet(BASE_URL .. fileName)
+    local chunk = loadstring(source, fileName)
+    if not chunk then
+        error("Zen2 loader: failed to compile " .. fileName)
+    end
+    return chunk()
+end
+
+-- Order matters: Gui must load first so MainLoader can read _G.Zen2_Gui
+_G.Zen2_Gui = fetchAndLoad("Gui")
+local MainLoader = fetchAndLoad("MainLoader")
+
+return MainLoader
