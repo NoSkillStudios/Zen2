@@ -27,14 +27,20 @@ function MainLoader:CreateLib(windowName)
     ScreenGui.ResetOnSpawn = false
     ScreenGui.Parent = game.CoreGui
 
+    local NORMAL_SIZE = UDim2.new(0, 640, 0, 380)
+    local NORMAL_POS = UDim2.new(0.5, -320, 0.5, -190)
+    local MINI_SIZE = UDim2.new(0, 240, 0, 40)
+    local FULLSCREEN_SIZE = UDim2.new(1, -40, 1, -40)
+    local FULLSCREEN_POS = UDim2.new(0, 20, 0, 20)
+
     local MainFrame = Instance.new("Frame")
     MainFrame.Name = "MainFrame"
     MainFrame.Parent = ScreenGui
     MainFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
     MainFrame.BorderSizePixel = 0
     MainFrame.ClipsDescendants = true
-    MainFrame.Position = UDim2.new(0.5, -320, 0.5, -190)
-    MainFrame.Size = UDim2.new(0, 640, 0, 380)
+    MainFrame.Position = NORMAL_POS
+    MainFrame.Size = NORMAL_SIZE
 
     local mainCorner = Instance.new("UICorner")
     mainCorner.CornerRadius = UDim.new(0, 8)
@@ -65,12 +71,61 @@ function MainLoader:CreateLib(windowName)
     TitleLabel.Parent = TitleBar
     TitleLabel.BackgroundTransparency = 1
     TitleLabel.Position = UDim2.new(0, 16, 0, 0)
-    TitleLabel.Size = UDim2.new(1, -32, 1, 0)
+    TitleLabel.Size = UDim2.new(1, -140, 1, 0)
     TitleLabel.Font = Enum.Font.GothamBold
     TitleLabel.Text = windowName
     TitleLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
     TitleLabel.TextSize = 16
     TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    ------------------------------------------------------------
+    -- WINDOW CONTROLS (minimize / maximize / close)
+    ------------------------------------------------------------
+    local ControlsFrame = Instance.new("Frame")
+    ControlsFrame.Name = "Controls"
+    ControlsFrame.Parent = TitleBar
+    ControlsFrame.BackgroundTransparency = 1
+    ControlsFrame.AnchorPoint = Vector2.new(1, 0.5)
+    ControlsFrame.Position = UDim2.new(1, -10, 0.5, 0)
+    ControlsFrame.Size = UDim2.new(0, 96, 0, 26)
+
+    local controlsLayout = Instance.new("UIListLayout")
+    controlsLayout.Parent = ControlsFrame
+    controlsLayout.FillDirection = Enum.FillDirection.Horizontal
+    controlsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+    controlsLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    controlsLayout.Padding = UDim.new(0, 6)
+    controlsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    local function makeControlButton(order, bgColor, hoverColor, glyphText)
+        local btn = Instance.new("TextButton")
+        btn.LayoutOrder = order
+        btn.Parent = ControlsFrame
+        btn.BackgroundColor3 = bgColor
+        btn.Size = UDim2.new(0, 26, 0, 26)
+        btn.AutoButtonColor = false
+        btn.Font = Enum.Font.GothamBold
+        btn.Text = glyphText
+        btn.TextColor3 = Color3.fromRGB(235, 235, 235)
+        btn.TextSize = 13
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 6)
+        btnCorner.Parent = btn
+
+        btn.MouseEnter:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = hoverColor}):Play()
+        end)
+        btn.MouseLeave:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = bgColor}):Play()
+        end)
+
+        return btn
+    end
+
+    local minimizeBtn = makeControlButton(1, Color3.fromRGB(45, 45, 52), Color3.fromRGB(60, 60, 70), "_")
+    local maximizeBtn = makeControlButton(2, Color3.fromRGB(45, 45, 52), Color3.fromRGB(60, 60, 70), "[ ]")
+    local closeBtn = makeControlButton(3, Color3.fromRGB(120, 35, 40), Color3.fromRGB(160, 45, 50), "X")
 
     -- Dragging
     local dragging = false
@@ -142,6 +197,66 @@ function MainLoader:CreateLib(windowName)
     local PagesFolder = Instance.new("Folder")
     PagesFolder.Name = "Pages"
     PagesFolder.Parent = ContentArea
+
+    ------------------------------------------------------------
+    -- WINDOW STATE: minimize / maximize / close
+    ------------------------------------------------------------
+    local isMinimized = false
+    local isMaximized = false
+
+    local function setBodyVisible(visible)
+        Sidebar.Visible = visible
+        ContentArea.Visible = visible
+    end
+
+    minimizeBtn.MouseButton1Click:Connect(function()
+        print("Yes")
+        isMinimized = not isMinimized
+
+        if isMinimized then
+            setBodyVisible(false)
+            TweenService:Create(MainFrame, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {
+                Size = MINI_SIZE
+            }):Play()
+        else
+            TweenService:Create(MainFrame, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {
+                Size = isMaximized and FULLSCREEN_SIZE or NORMAL_SIZE
+            }):Play()
+            task.delay(0.18, function()
+                setBodyVisible(true)
+            end)
+        end
+    end)
+
+    maximizeBtn.MouseButton1Click:Connect(function()
+        print("Yes")
+        if isMinimized then return end
+        isMaximized = not isMaximized
+
+        if isMaximized then
+            TweenService:Create(MainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+                Size = FULLSCREEN_SIZE,
+                Position = FULLSCREEN_POS
+            }):Play()
+        else
+            TweenService:Create(MainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+                Size = NORMAL_SIZE,
+                Position = NORMAL_POS
+            }):Play()
+        end
+    end)
+
+    closeBtn.MouseButton1Click:Connect(function()
+        print("Yes")
+        TweenService:Create(MainFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, MainFrame.AbsoluteSize.X, 0, 0),
+            Position = UDim2.new(MainFrame.Position.X.Scale, MainFrame.Position.X.Offset,
+                MainFrame.Position.Y.Scale, MainFrame.Position.Y.Offset + MainFrame.AbsoluteSize.Y / 2)
+        }):Play()
+        task.delay(0.15, function()
+            ScreenGui:Destroy()
+        end)
+    end)
 
     ------------------------------------------------------------
     -- WINDOW OBJECT
@@ -224,7 +339,6 @@ function MainLoader:CreateLib(windowName)
             end
 
             page.Visible = true
-            page.GroupTransparency = 1
             TweenService:Create(tabBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad), {
                 BackgroundColor3 = Color3.fromRGB(50, 50, 60)
             }):Play()
